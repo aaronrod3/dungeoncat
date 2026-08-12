@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Read `Docs/SessionHandoff.md` first, every session** — it is kept short on purpose and only covers the last completed task and the immediate next step. Full history lives in the git commit log, not in this repo's docs.
 
-`Docs/GameDevPlan.md` is the design plan of record for the actual game (co-op ARPG dungeon crawler — GAS, procedural dungeons, bipedal cat, 2-month beta scope) — see the Project overview note below on how that relates to what's currently in this repo.
+`Docs/GameDevPlan.md` is the design plan of record for the actual game (co-op ARPG dungeon crawler — GAS, procedural dungeons, bipedal cat, 2-month beta scope) — see the Project overview note below on how that relates to what's currently in this repo. `Docs/SystemsDesign.md` is the technical spec (naming convention, GAS/combat, replication, dungeon generation, AI, itemization, UI) that engineering builds against. `Docs/AssetPipeline.md` is the Blender-facing spec (skeleton, sockets, animation list, dungeon trim-kit grid, naming) for self-authored art. `Docs/ProductionPlan.md` breaks the beta roadmap into phases (P0-P4) with exit criteria.
 
 ## Project overview
 

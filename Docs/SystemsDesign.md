@@ -1,0 +1,123 @@
+# Systems Design
+
+Technical design for every major system, expanding `GameDevPlan.md`'s architecture section (§4) into concrete, buildable specs. This is the doc engineering should build against; `GameDevPlan.md` stays the pitch/decisions/roadmap layer, this is the "how." Update in place as systems get built and reality corrects the plan — don't let this drift from what's actually implemented (see `SessionHandoff.md`'s rule: status lives there, not here; this doc describes intended/current design, not "is it done").
+
+---
+
+## 1. Naming convention
+
+One project prefix, **`DC`**, for every new class/asset belonging to the real game — this distinguishes real-game code from the stock template's unprefixed scaffold classes (`DungeonCatCharacter`, `DungeonCatGameMode`, etc.) which stay as-is (either reused directly or superseded, per class). Pick this once and don't change it — Blueprint asset renames are painful mid-project and can corrupt references.
+
+- C++: `ADCPlayerCharacter`, `ADCGameMode`, `ADCPlayerState`, `ADCPlayerController`, `UDCAbilitySystemComponent`, `UDCAttributeSet`, `UDCGameplayAbility`, `ADCEnemyCharacter`, `ADCDungeonGenerator`.
+- Content: `BP_DC_*`, `DA_DC_*` (DataAssets), `WBP_DC_*` (widgets), `GA_DC_*` (Gameplay Abilities), `GE_DC_*` (Gameplay Effects), `SK_DC_*` (skeletal meshes), `SM_DC_*` (static meshes), `T_DC_*` (textures), `M_DC_*`/`MI_DC_*` (materials/instances), `A_DC_*` (animation sequences), `AM_DC_*` (anim montages).
+- Input Actions unprefixed (`IA_Attack`), Input Mapping Contexts prefixed (`IMC_DC_Default`) — matches the existing template's own convention (`IMC_Default`, `IMC_MouseLook`), just adding the project prefix for new ones so they're not confused with the stock template's IMCs if both stay in the project.
+- GameplayTags: dot-hierarchy, `Ability.Knight.*`, `State.*` (e.g. `State.Stunned`, `State.Downed`), `Damage.*`, `Cue.*`. Root tag list lives in `Config/Tags/` once GAS work starts (DataTable-based, not hardcoded native tags, so design can add tags without a recompile).
+
+## 2. Combat & ability system (GAS)
+
+### 2.1 AttributeSet
+One `UDCAttributeSet` for the beta (single class). Fields:
+
+| Attribute | Notes |
+|---|---|
+| `Health` / `MaxHealth` | Clamped 0..Max via a `PreAttributeChange`/`ClampAttribute` pattern, never set directly. |
+| `Stamina` / `MaxStamina` | Knight's resource — spent on abilities, regens idle (mirrors `zombieshooter`'s `UZSNeedsComponent` stamina-drain/regen pattern, which is proven and reusable). |
+| `Armor` | Flat or percentage damage reduction — pick flat-then-scale for the beta, simplest to tune. |
+| `MoveSpeed` | Feeds `CharacterMovementComponent::MaxWalkSpeed` via a GameplayEffect-driven multiplier, never set directly on the movement component. |
+| `CritChance` / `CritMultiplier` | Present from the start even if the beta's single class doesn't tune them much — avoids a schema change when class 2 wants crit-focused kits. |
+
+### 2.2 ASC placement: PlayerState, not Character
+Attach `UDCAbilitySystemComponent` + `UDCAttributeSet` to `ADCPlayerState`, not `ADCPlayerCharacter`. Reasoning: the character is expected to be destroyed/respawned on death (§7 below), and a PlayerState-hosted ASC survives that, avoiding an ASC re-init + ability re-grant dance on every respawn. Standard pattern for GAS games without pawn-possession-swapping mid-match. `ADCPlayerCharacter` still implements `IAbilitySystemInterface::GetAbilitySystemComponent()` by forwarding to its `PlayerState`.
+
+### 2.3 Abilities (Knight beta spec — 4 abilities)
+Grey-box functional spec; exact numbers are tuning, not architecture:
+
+1. **Basic Attack** (`GA_DC_Knight_BasicAttack`) — 3-hit combo chain, reuses the existing `Variant_Combat` `AnimNotify_*` attack-trace pattern (don't reinvent hit detection, port it). Each combo step is a separate montage section, not separate abilities.
+2. **Shield Bash** (`GA_DC_Knight_ShieldBash`) — short-range gap-closer + stagger (applies `State.Staggered` via a `GE_DC_Stagger` GameplayEffect with a tag-based duration). Stamina cost.
+3. **Dash** (`GA_DC_Knight_Dash`) — mobility/repositioning, i-frames during the active window (a `GameplayEffect` granting `State.Invulnerable` for the dash's active frames, removed on montage end via a notify, not a timer — avoids drift between animation and gameplay window).
+4. **Whirlwind** (`GA_DC_Knight_Whirlwind`) — AoE around the player, the "crowd control" tool for the swarm/leaper archetype. Cooldown-gated via a `GE_DC_Cooldown_Whirlwind` effect with the ability's own tag.
+
+All four are `UDCGameplayAbility` subclasses (a thin base adding convenience getters mirroring `zombieshooter`'s `UZSUserWidgetBase` convenience-getter pattern — `GetDCPlayerCharacter()`, `GetDCAttributeSet()`, etc.). Activation is server-authoritative (`NetExecutionPolicy = ServerInitiated` or `LocalPredicted` once prediction is worth the complexity — start `ServerInitiated` for the beta, revisit prediction only if input latency is actually a felt problem in co-op testing, not preemptively).
+
+### 2.4 Damage pipeline
+Single entry point, no exceptions: all damage flows through one `UDCAttributeSet`-side `ExecutionCalculation` (`UDCDamageExecCalculation`), invoked only via a `GameplayEffect` applied through `ASC->ApplyGameplayEffectSpecToTarget`. Nothing else mutates `Health` directly — mirrors `zombieshooter`'s `UZSHealthComponent` convention (`AZSPlayerCharacter::TakeDamage` is the *only* path that reaches `Server_ApplyDamage`), which is a proven pattern worth carrying over verbatim rather than re-deriving.
+
+### 2.5 GameplayCues
+VFX/SFX are `GameplayCue` handlers (`GC_DC_*`), never triggered directly from ability C++/BP logic — keeps presentation swappable by the person doing art/audio pass without touching gameplay code, and cues replicate correctly to all co-op clients for free.
+
+## 3. Co-op & replication
+
+### 3.1 Session model
+Listen-server only for the beta (matches `GameDevPlan.md` §8 scope) — one player hosts via Steam Sessions (if Steam integration is already available from prior projects) or direct-IP/Steam-invite-join, no dedicated-server packaging, no host migration. If the host disconnects, the session ends — acceptable for a 2-player, 8-12-minute run; document this as a known beta limitation, not a bug to chase.
+
+### 3.2 Server authority
+Every ability, health change, enemy action, and loot pickup is server-authoritative from the first line — this is decision §2.1's non-negotiable, not a retrofit target. Concretely: `Server_` RPC prefix convention for every mutator (matches `zombieshooter`'s convention exactly — carry it over), `HasAuthority()` guards on every state-changing function, `ReplicatedUsing=OnRep_X` + `OnRep_X` broadcasts a delegate for every replicated property UI/animation cares about. **Never poll replicated state directly** from Tick or Blueprint — this specific mistake is called out because it's the easiest one to make under time pressure and the hardest to debug once several systems depend on the polled value being fresh.
+
+### 3.3 Replication risk window
+Per `GameDevPlan.md` §8/§9, weeks 5-6 are the highest-risk window on the whole 2-month clock. Concretely de-risk it by proving one ability replicates correctly across 2 PIE clients in **week 1**, not after the rest of combat is built — see `ProductionPlan.md` P1's exit criteria.
+
+## 4. Procedural dungeon generation
+
+### 4.1 Room module grid
+- Base grid unit: **400 uu** (matches common UE modular-kit convention, and is a clean multiple of the Mannequin-derived cat's capsule radius).
+- Room modules are rectangular, sized in whole grid multiples — e.g. a standard combat room is 10x10 tiles (4000x4000uu), a corridor segment is 2x4 tiles. Exact catalog of room sizes is an art-pipeline decision (`AssetPipeline.md` §3), not a code decision — the generator just needs modules tagged with their footprint.
+- Door sockets sit at fixed grid-aligned positions on a room's N/S/E/W edges (one door per edge minimum, corridor pieces are 2-door pass-throughs). A door socket is a `USceneComponent` tagged `Socket.Door` at a consistent local-space offset so any two modules' doors can snap together regardless of which modules they are.
+
+### 4.2 Generation algorithm
+Seed-driven graph stitching (not wave-function-collapse — explicitly out of scope per `GameDevPlan.md` §4.2):
+
+1. Seed an `FRandomStream` from the run seed.
+2. Start at a fixed entry room. Random-walk a chain of 6-10 rooms (per `GameDevPlan.md` §7's MVP target), at each step picking an unvisited door-compatible module from the catalog.
+3. Tag rooms by position in the chain: first = Entry, last = Exit, one interior room (weighted toward the far half of the chain) = Objective/Boss, remainder = Combat, with a small chance of a Loot side-branch (a 1-room dead-end off the main chain) if the chain has slack.
+4. Reject-and-retry generation if the chain can't place within a bounded number of attempts (prevents infinite loops on a bad seed) — log the failed seed for debugging, fall back to a known-good hand-authored layout if retries exhaust, rather than crashing or spawning a broken dungeon.
+
+### 4.3 Runtime instantiation & nav
+- Rooms are spawned as actors (not sub-levels, for the beta — level streaming is a post-beta optimization, not needed at 6-10 rooms) at door-aligned transforms computed by walking the chain.
+- Navigation rebuilds at runtime via a `NavMeshBoundsVolume` sized to the generated dungeon's bounding box, or Nav Mesh Invokers per player if the bounding-volume approach proves too expensive to rebuild — start with the simpler bounds-volume approach and only move to invokers if profiling says so.
+- Same seed always produces the same dungeon — this is load-bearing for debugging and must be verified (not assumed) once the generator exists: a repeatable-seed automation test belongs in `Source/DungeonCat/Tests/` per `ProductionPlan.md` P2.
+
+## 5. Enemy AI
+
+Architecture decided in `GameDevPlan.md` §4.5 (StateTree default, BT embedded escape hatch for the boss only). Per-archetype behavior spec:
+
+| Archetype | Core loop | EQS need |
+|---|---|---|
+| Melee chaser | Idle → detect (AIPerception sight/hearing) → close-distance rush → attack when in range → recover | Closest-valid-approach-point query, mirrors `zombieshooter`'s `AZombieAIController` perception wiring |
+| Ranged spitter | Idle → detect → maintain preferred range (retreat if too close, approach if too far) → attack | Ring query at preferred range, line-of-sight filtered |
+| Swarm/leaper | Idle → detect → flank/surround (multiple enemies bias toward different approach angles) → leap-attack | Multi-point query scored for spacing from other swarm members, not just from the player |
+| Boss | Idle → aggro → phase 1..N (telegraph → attack → recover, repeat, phase transition on health thresholds) → dead | Per-attack-pattern positioning queries, defined per phase |
+
+All four share one base `ADCEnemyCharacter` + one base StateTree schema (extends the existing `CombatStateTreeUtility` conditions), parameterized per archetype rather than forked — per the multi-config rule below.
+
+**Multi-config rule** (carried over from `zombieshooter`, worth stating explicitly here too): a new enemy is a new `DA_DC_EnemyConfig_*` data asset instance (speed/health/senses/damage/mesh/StateTree params), never a new C++ subclass. New enemies should be mostly art + a new config asset once the four archetypes exist.
+
+## 6. Itemization & loot
+
+- `UDCItemConfig` DataAsset: display name, icon, rarity tier, equip slot (if any), granted `GameplayEffect`(s) for stat modifiers. Mirrors `zombieshooter`'s `UZSItemConfig` shape closely enough to port the pattern, not the content.
+- Rarity tiers for the beta: Common / Uncommon / Rare / Epic (4 tiers is enough to feel ARPG-ish without needing a full affix system yet — procedural affixes are explicitly post-beta per `GameDevPlan.md` §4.6).
+- Drop tables: one `DA_DC_LootTable_*` per enemy archetype + one per room type (Combat/Loot/Boss), rolled server-side only.
+
+## 7. Progression & saves
+
+Two separate, non-overlapping save scopes — don't let them blur:
+
+- **Profile save** (persistent across runs): cosmetic unlocks, meta-currency, class/spec unlocks (post-beta). One `USaveGame` per player profile.
+- **Run state** (ephemeral, in-memory only for the beta): the current dungeon's seed, room graph, and per-player loot-carried-this-run. **No mid-run save/resume for the beta** — this is a deliberate design choice, not a cut corner: it preserves the extraction *tension* pillar (§3 in `GameDevPlan.md`) that a failed run has real stakes. Revisit only if playtesting says runs need to be pause-and-resume-able, which would be a pillar-level conversation, not a quiet architecture change.
+
+Death handling (co-op, no permadeath for the beta): a downed player can be revived by a teammate within the run; a solo-downed player with no teammate available fails the run (matches the co-op-PvE decision — no permanent character loss, the *run's* loot is what's at stake, not the character).
+
+## 8. UI/UX flow
+
+`Main Menu → Lobby (host/join) → Loadout (beta: fixed Knight, no real choice yet, but build the screen so post-beta class selection slots in without a rebuild) → Dungeon HUD (per-player health/stamina bars, objective tracker; minimap is explicitly cut from the beta per GameDevPlan.md §6) → Run-End screen (extract success/fail, loot summary) → back to Hub.`
+
+Every HUD/menu widget is a dedicated `UDCUserWidgetBase` subclass (native `BindWidget` + `NativeConstruct` wiring, Blueprint side is layout/Class-Defaults only) — mirrors `zombieshooter`'s B1 UI convention, which the dev already validated works well for a solo-dev Claude-Code-assisted pace.
+
+## 9. Camera & controls
+
+Third-person, over-the-shoulder — `GameDevPlan.md`'s header explicitly says "third person," which resolves what could otherwise read as ambiguous against the Diablo-4 comparison (Diablo 4 is isometric; the visual/control reference is Dark and Darker's camera, not Diablo's). Reuse the existing stock template's `DungeonCatCharacter` camera-boom setup as the starting point rather than building a camera system from scratch — it's already third-person and already in the repo.
+
+## 10. Open items to resolve during P1 (not blocking planning, but not yet decided)
+
+- Exact Stamina regen/drain curve (tuning, needs the grey-box arena to feel out).
+- Whether ability activation goes `ServerInitiated` or `LocalPredicted` long-term (§2.3 — start server-initiated, revisit only if latency is a felt problem).
+- Steam Sessions vs direct-IP for the beta's join flow (§3.1) — depends on whether Steam integration already exists from a prior project to reuse.

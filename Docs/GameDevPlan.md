@@ -104,16 +104,15 @@ Go **prefab-room graph stitching**, not full geometry synthesis (skip wave-funct
 Drive classes, abilities, enemies, and loot from DataAssets / DataTables so you can tune without recompiling. Given your DevOps instincts, lean into this hard; it makes balancing a data problem, not a code problem.
 
 ### 4.5 Enemy AI
-Behavior Trees + EQS, built as a small set of **archetypes** you reskin:
 
-- Melee chaser (mouse, lizard)
-- Ranged spitter (snake, spitting spider)
-- Swarm/leaper (small spiders)
-- Boss (multi-phase, telegraphed attacks)
+**DECISION (2026-08-12): StateTree is the default AI architecture for all archetypes, with classic Behavior Tree used only as an embedded sub-behavior where it genuinely earns its keep.**
 
-Four archetypes cover most of the bestiary; new enemies become mostly art + stat tweaks.
+StateTree and BT are not mutually exclusive — since UE 5.3, a StateTree state can run a full Behavior Tree as a leaf task (`FStateTreeRunBehaviorTreeTask` / the "Run Behavior Tree" task on the AI schema) and resume when it finishes or is interrupted. That interop is what makes "which one" a false choice; the real question is which one owns the *top level*.
 
-Note: this repo's stock template variants already use **StateTree / GameplayStateTree** for their AI (see `CLAUDE.md`), not classic Behavior Trees. Reconcile this before AI work starts on the real plan — either standardize on StateTree (matches the existing project convention) or bring in classic BT/EQS as this doc originally specified. Not yet decided; flag as an open question in `SessionHandoff.md` when AI work begins.
+- **StateTree owns the top level, always.** This repo's existing scaffold (`Variant_Combat`'s `AI/CombatAIController`, `CombatEnemy`, `CombatStateTreeUtility`, EQS contexts) is already a working StateTree + EQS pattern — reuse and extend it rather than introducing a second AI paradigm from scratch, per the reuse pillar (§3.4/§4.7). StateTree is also Epic's forward direction (data-driven, hierarchical state composition, cleaner Smart Object integration than BT), and every enemy needs the same replicated top-level states regardless of archetype: `Idle -> Investigate -> Chase -> Attack -> Downed -> Dead`, parameterized per archetype via StateTree parameters rather than forked into separate graphs.
+- **Melee chaser, ranged spitter, swarm/leaper: pure StateTree, no BT.** Their behavior is a handful of states plus an EQS query for positioning (melee = closest-approach rush; ranged = maintain-distance-and-strafe via a ring query; swarm = flank/surround via multiple candidate points scored for spacing). StateTree alone expresses this cleanly — don't reach for BT here.
+- **Boss: StateTree top level (Idle/Aggro/Phase transitions/Dead, replicated), optionally a Behavior Tree embedded for the "in-combat, current phase" leaf state.** Multi-phase, multi-attack-pattern, heavily-telegraphed boss logic is the one case where BT's mature decorator/service/composite tooling can be genuinely faster to author and iterate on than deeply nested StateTree sub-states. Try StateTree-only first when the boss stub gets built (§7/§8 week 7-8) — only drop into the BT escape hatch if the phase logic actually gets unwieldy in pure StateTree. Don't pre-decide this; let the first boss's real complexity decide it.
+- Every archetype's StateTree extends the existing `CombatStateTreeUtility` conditions/considerations convention rather than inventing a parallel one — new archetype-specific conditions get added there, not in a new utility class per archetype.
 
 ### 4.6 Input & other systems
 - Enhanced Input for bindings.
