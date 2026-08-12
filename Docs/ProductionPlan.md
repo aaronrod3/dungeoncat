@@ -10,10 +10,10 @@ Each phase lists deliverables as a checklist and an exit criteria gate — don't
 
 Not on the original 8-week clock, but cheap and worth doing before writing new systems code.
 
-- [ ] Read through `zombieshooter`'s `Combat/UZSHealthComponent`, `Survival/`, `Interaction/UZSInteractableComponent`, and `Weapons/` for patterns worth porting (not copying) into `DC` equivalents — the single-damage-entry-point convention, the interactable-component pattern, and the replicated-property + `OnRep` + delegate convention are all called out as reuse targets in `SystemsDesign.md`.
-- [ ] Confirm which parts of the existing stock `Variant_Combat` scaffold (StateTree AI setup, `AnimNotify_*` attack-trace pattern, combo system) survive into the real game vs. get replaced — `SystemsDesign.md` already assumes the attack-trace and StateTree patterns survive; verify that assumption holds once you're actually looking at the code, not just describing it from memory.
+- [x] Read through `zombieshooter`'s `Combat/UZSHealthComponent`, `Survival/`, `Interaction/UZSInteractableComponent`, and `Weapons/` for patterns worth porting (not copying) into `DC` equivalents — the single-damage-entry-point convention, the interactable-component pattern, and the replicated-property + `OnRep` + delegate convention are all called out as reuse targets in `SystemsDesign.md`.
+- [x] Confirm which parts of the existing stock `Variant_Combat` scaffold (StateTree AI setup, `AnimNotify_*` attack-trace pattern, combo system) survive into the real game vs. get replaced — `SystemsDesign.md` already assumes the attack-trace and StateTree patterns survive; verify that assumption holds once you're actually looking at the code, not just describing it from memory.
 
-**Exit criteria**: a short note in `SessionHandoff.md` confirming what's being reused vs. rebuilt — not a deliverable in itself, just make sure this isn't skipped silently.
+**Exit criteria**: a short note in `SessionHandoff.md` confirming what's being reused vs. rebuilt — not a deliverable in itself, just make sure this isn't skipped silently. **Done 2026-08-12** — full findings in `SystemsDesign.md` §10. Headline result: the attack-trace/combo/StateTree *mechanisms* hold up as assumed, but `CombatEnemy`'s damage/health is entirely non-replicated (rebuild from scratch on GAS, don't adapt it), and enemy player-targeting is hardcoded to player index 0 (`EnvQueryContext_Player`) — a real blocker for P2/P3, see P2 below.
 
 ---
 
@@ -37,6 +37,7 @@ The highest-risk phase on the whole clock is proving replication works at all, s
 - [ ] Room module grid/socket convention in place per `AssetPipeline.md` §5 (needs at least the minimal room catalog: entry, one combat room, one corridor, exit).
 - [ ] `ADCDungeonGenerator` implementing the graph-stitching algorithm (`SystemsDesign.md` §4.2), seed-driven.
 - [ ] Runtime NavMesh rebuild (`SystemsDesign.md` §4.3).
+- [ ] **Fix player targeting for multi-player before any enemy AI work** — the existing `EnvQueryContext_Player`/`FStateTreeGetPlayerInfoTask` only ever see player index 0 (`SystemsDesign.md` §10 finding). Rewrite both to consider every entry in `GameState->PlayerArray` first; every archetype below depends on this being correct, not just the melee chaser.
 - [ ] Two enemy archetypes — melee chaser + ranged spitter — as StateTree AI (`SystemsDesign.md` §5), each a `DA_DC_EnemyConfig_*` instance off one shared `ADCEnemyCharacter` base.
 - [ ] Basic loot pickup (no rarity/affix system yet — just "pick up, add to inventory").
 

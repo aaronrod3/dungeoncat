@@ -116,7 +116,26 @@ Every HUD/menu widget is a dedicated `UDCUserWidgetBase` subclass (native `BindW
 
 Third-person, over-the-shoulder — `GameDevPlan.md`'s header explicitly says "third person," which resolves what could otherwise read as ambiguous against the Diablo-4 comparison (Diablo 4 is isometric; the visual/control reference is Dark and Darker's camera, not Diablo's). Reuse the existing stock template's `DungeonCatCharacter` camera-boom setup as the starting point rather than building a camera system from scratch — it's already third-person and already in the repo.
 
-## 10. Open items to resolve during P1 (not blocking planning, but not yet decided)
+## 10. P0 reuse audit findings (2026-08-12)
+
+Verified against the actual code (not memory) per `ProductionPlan.md` P0. Corrects a few assumptions made earlier in this doc — this section is the ground truth where it disagrees with prose above.
+
+**Confirmed reusable (port the pattern, not the class):**
+- `AnimNotify_DoAttackTrace`'s sweep (`ACombatEnemy::DoAttackTrace`): a sphere sweep along the actor's forward vector from a named bone socket, filtered to `ECC_Pawn`. The geometry is archetype-agnostic and directly reusable for the Knight's melee abilities and the melee-chaser archetype — only the hit-application needs to change (currently calls `ICombatDamageable::ApplyDamage` directly; needs to route through the GAS damage pipeline instead, §2.4).
+- The combo *mechanism* (`ComboSectionNames` + `Montage_JumpToSection` from an AnimNotify): reusable as-is. The combo *decision logic* is not — `ACombatEnemy::DoAIComboAttack` picks a random hit count (AI behavior), while the Knight's combo needs input-buffered continuation (did the player press attack again inside the combo window). Same mechanism, different driver.
+- `ACombatAIController` (thin `AAIController` + `UStateTreeAIComponent` wrapper) — trivial and solid, use directly as the base for every archetype's AI controller.
+- `CombatStateTreeUtility`'s condition/task library (grounded check, face-actor/face-location, set-speed, the in-danger reaction condition) — reusable shape, extend rather than replace. Two exceptions, see below.
+- `CombatEnemySpawner`'s activate-on-trigger / track-until-depleted pattern — good starting point for a dungeon room's "combat encounter" logic (spawn on room entry, unlock progression once the room's spawner is depleted).
+- `zombieshooter`'s `UZSInteractableComponent` — ports directly as `UDCInteractableComponent`, no GAS entanglement, already shaped as `BlueprintNativeEvent` + server-routed.
+- `zombieshooter`'s `UZSHealthComponent` downed/revive **state machine** (health-depleted → enter downed → timer → revive-or-die, "already downed = finishing blow"): the logic is exactly what `SystemsDesign.md` §7 needs for co-op revive. Port the state machine, not the component — DC's health lives in `UDCAttributeSet` (§2.1), not a hand-rolled `ReplicatedUsing`/`OnRep` component.
+- `zombieshooter`'s `UZSNeedsComponent` stamina drain-while-active/regen-while-idle tick shape — port the curve logic into a GAS ability/effect, not the component itself.
+
+**Must be rebuilt, not reused — the audit's real findings:**
+- **`ACombatEnemy::TakeDamage`/`ApplyDamage`/`CurrentHP` are entirely non-replicated** — no `HasAuthority()` gating anywhere in the class, plain floats, no `Replicated`/`OnRep`. This is a single-player sandbox implementation start to finish. None of `CombatEnemy`'s damage/health code ports; §2.4's GAS damage pipeline is being built from scratch, not adapted from this.
+- **Player targeting is hardcoded to player index 0.** `EnvQueryContext_Player::ProvideContext` calls `UGameplayStatics::GetPlayerPawn(Owner, 0)` — literally "the first local player," full stop. `CombatStateTreeUtility`'s `FStateTreeGetPlayerInfoTask` has the same single-target assumption baked into its instance data (`TargetPlayerCharacter`, singular). **In a 2-player co-op session, every enemy would perceive and target only Player 0 and completely ignore Player 1.** This blocks every enemy archetype until fixed — rewrite both the EQS context and the StateTree task to consider all of `GameState->PlayerArray` (nearest, or threat-scored) before `ProductionPlan.md` P2's enemy work starts, not after.
+- `zombieshooter`'s `Weapons/` (ranged/magazine/ammo/jam systems) — not relevant to the melee-only Knight beta. Skip entirely; revisit only if/when a ranged player class is added post-beta.
+
+## 11. Open items to resolve during P1 (not blocking planning, but not yet decided)
 
 - Exact Stamina regen/drain curve (tuning, needs the grey-box arena to feel out).
 - Whether ability activation goes `ServerInitiated` or `LocalPredicted` long-term (§2.3 — start server-initiated, revisit only if latency is a felt problem).
