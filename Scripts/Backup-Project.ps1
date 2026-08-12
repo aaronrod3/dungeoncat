@@ -7,8 +7,8 @@ $SourcePath = "C:\Users\aaron\Documents\Unreal Projects\DungeonCat"
 $DestPath   = "D:\Dev\Backups\DungeonCat\Live"
 $LogDir     = "D:\Dev\Backups\DungeonCat\Logs"
 
-if (-not (Test-Path "D:\")) {
-    Write-Output "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - D: drive not available, skipping backup."
+if (-not (Test-Path (Split-Path $DestPath -Qualifier))) {
+    Write-Output "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - backup drive not available, skipping backup."
     exit 0
 }
 

@@ -1,5 +1,10 @@
 # Unreal Engine binary/content assets — tracked via Git LFS.
-# Free tier is 10 GiB storage + 10 GiB bandwidth per month, per-account (not per-repo).
+#
+# Gitea (this project's primary remote, see CLAUDE.md) stores LFS objects
+# locally with no size/bandwidth ceiling. GitHub is kept as a secondary
+# mirror — set its LFS spending budget to $0 in GitHub billing settings so
+# it fails safe instead of billing, in case the push mirror ever relays
+# large objects there too.
 
 *.uasset filter=lfs diff=lfs merge=lfs -text
 *.umap filter=lfs diff=lfs merge=lfs -text

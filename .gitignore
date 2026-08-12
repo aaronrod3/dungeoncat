@@ -48,3 +48,18 @@ Thumbs.db
 *.pem
 *.key
 .env
+
+# ---------------------------------------------------
+# Third-party / re-downloadable content
+#
+# If content is licensed and can't be redistributed, or is free-but-large
+# and re-downloadable from its source (a marketplace/Fab pack, a sample
+# import), ignore it here and add a row to Docs/AssetSources.md documenting
+# what it is and where to get it back on a fresh clone. Don't let this
+# section stay empty by default once the project pulls in paid/marketplace
+# content (per GameDevPlan.md §5, expected once the art pass starts) - an
+# empty list here on a real project usually means someone forgot.
+#
+# Example entries (uncomment/adapt once real paths exist):
+# Content/SomeMarketplacePack/
+# Content/SampleProjectImport/
