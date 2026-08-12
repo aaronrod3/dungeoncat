@@ -1,0 +1,66 @@
+# ---------------------------------------------------
+# Unreal Engine generated/derived directories
+# ---------------------------------------------------
+Binaries/
+Build/
+DerivedDataCache/
+Intermediate/
+Saved/
+Plugins/*/Binaries/
+Plugins/*/Intermediate/
+
+# Cache/DDC files
+*.uasset.orig
+
+# ---------------------------------------------------
+# Visual Studio / Rider generated
+# ---------------------------------------------------
+.vs/
+.vsconfig
+*.VC.db
+*.VC.VC.opendb
+*.opensdf
+*.opendb
+*.sdf
+*.sln
+*.slnx
+*.suo
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# ---------------------------------------------------
+# Automation/build tooling
+# ---------------------------------------------------
+Automation_*.sln
+Automation_*.slnx
+
+# ---------------------------------------------------
+# OS files
+# ---------------------------------------------------
+.DS_Store
+Thumbs.db
+
+# ---------------------------------------------------
+# Never commit credentials
+# ---------------------------------------------------
+*.pem
+*.key
+.env
+
+# ---------------------------------------------------
+# Third-party / re-downloadable content
+#
+# Pattern from a prior project: if content is licensed and can't be
+# redistributed, or is free-but-large and re-downloadable from its source
+# (a marketplace pack, a sample-project import), ignore it here and add a
+# row to a Docs/AssetSources.md documenting what it is and where to get it
+# back on a fresh clone. Don't let this section stay empty by default if
+# the project pulls in any paid/marketplace content - an empty exclusion
+# list here on a real project usually means someone forgot, not that
+# there's nothing to exclude.
+#
+# Example entries (uncomment/adapt once real paths exist):
+# Content/SomeMarketplacePack/
+# Content/SampleProjectImport/
