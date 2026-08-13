@@ -139,6 +139,8 @@ Since you're doing most modeling yourself, the pipeline *is* your timeline. Opti
 
 ## 6. Content scope reference (full release vs beta)
 
+Class identities and full 16-ability roster (all 4 classes, named and kit-designed ahead of when any of it gets built): `SystemsDesign.md` §2.6.
+
 | Content | Full-release vision | 2-month beta |
 |---|---|---|
 | Classes | 4 (Knight, Rogue, Wizard, Healer) | 1 (Knight) |

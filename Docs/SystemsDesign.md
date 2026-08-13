@@ -45,6 +45,30 @@ Single entry point, no exceptions: all damage flows through one `UDCAttributeSet
 ### 2.5 GameplayCues
 VFX/SFX are `GameplayCue` handlers (`GC_DC_*`), never triggered directly from ability C++/BP logic — keeps presentation swappable by the person doing art/audio pass without touching gameplay code, and cues replicate correctly to all co-op clients for free.
 
+### 2.6 Post-beta classes (Rogue, Wizard, Healer) — not in beta scope
+
+Per `GameDevPlan.md` §6, the full-release vision is 4 classes / 8 specializations; the beta ships Knight only. Ability kits for the other three are speculative-but-decided (identity + kit locked 2026-08-12, not yet built) — recorded here so the design work isn't lost, not because any of it is scheduled. Same 4-slot structure as Knight (basic attack, playmaking tool, mobility/control, signature payoff), same real-cat-behavior naming voice as §2.3.
+
+**Rogue — ambush predator.** Opener/burst role, not sustained DPS — the whole identity is stalk-then-strike, deliberately distinct from Knight's sustained-cleave-tank role so the two melee classes don't feel like reskins of each other.
+- **Quickclaw** — basic attack, a faster/lighter multi-hit combo than Claw Flurry — chip damage between openers, not the main damage source.
+- **Slink** — stealth/setup: reduces detection, enables repositioning behind or away from a target.
+- **Ambush** — the payoff: a guaranteed-bonus-damage strike, full power only from Slink or from behind the target.
+- **Hiss** — escape/defensive: short-range intimidation burst, nearby enemies flinch/back off.
+
+**Wizard — familiar/hex caster.** Curse/control specialist that sets up kills for the team rather than pure nuking — leans into the witch's-familiar folklore hook instead of generic elemental blasting.
+- **Jinx** — basic attack, ranged cursed bolt.
+- **Evil Eye** — single-target curse/root/mark.
+- **Hairball** — lobbed AoE, explodes into a damage-over-time zone. Deliberately the one joke ability in the whole roster.
+- **Nine Lives** — signature: an activated ward absorbing the next lethal hit (self or ally — TBD once this actually gets built).
+
+**Healer — purr and groom support.** Proactive (heal-pulse, shields) rather than reactive click-to-heal, since reactive healing fits fast action combat poorly. Combat-capable, not a pure healbot, per the class-expression pillar (`GameDevPlan.md` §3).
+- **Swat** — basic attack, deliberately lighter than the other three classes' — Healer fights, but it isn't the kit's main draw.
+- **Purr** — signature: proactive AoE heal-pulse.
+- **Groom** — proactive shield/barrier on an ally or self.
+- **Biscuits** — party buff/rally (exact effect TBD — haste and regen are the leading candidates).
+
+Full 16-ability roster now named (4 classes × 4 abilities). None of it is implemented — Knight's 4 (§2.3) are the only ones with real GAS classes, and even those are grey-box/not-yet-built per `ProductionPlan.md`. Don't let this section's level of detail imply otherwise.
+
 ## 3. Co-op & replication
 
 ### 3.1 Session model
