@@ -18,13 +18,17 @@ public class DungeonCat : ModuleRules
 			"StateTreeModule",
 			"GameplayStateTreeModule",
 			"UMG",
-			"Slate"
+			"Slate",
+			"GameplayAbilities",
+			"GameplayTags",
+			"GameplayTasks"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] { });
 
 		PublicIncludePaths.AddRange(new string[] {
 			"DungeonCat",
+			"DungeonCat/GAS",
 			"DungeonCat/Variant_Platforming",
 			"DungeonCat/Variant_Platforming/Animation",
 			"DungeonCat/Variant_Combat",

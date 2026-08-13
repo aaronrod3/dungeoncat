@@ -21,14 +21,18 @@ Not on the original 8-week clock, but cheap and worth doing before writing new s
 
 The highest-risk phase on the whole clock is proving replication works at all, so that's the gate, not a nice-to-have at the end.
 
-- [ ] `UDCAttributeSet` (per `SystemsDesign.md` §2.1), `UDCAbilitySystemComponent` on `ADCPlayerState` (§2.2).
-- [ ] `UDCGameplayAbility` base class + all 4 Knight abilities (§2.3) functional solo (no co-op yet).
-- [ ] `UDCDamageExecCalculation` single-entry-point damage pipeline (§2.4).
-- [ ] Enhanced Input wired for the 4 abilities + movement, via a new `IMC_DC_Default`.
+- [x] `UDCAttributeSet` (per `SystemsDesign.md` §2.1) — Health/MaxHealth/Stamina/MaxStamina/Armor/MoveSpeed/CritChance/CritMultiplier + a `Damage` meta attribute, `PostGameplayEffectExecute` converts Damage into a real Health change per §2.4's single-entry-point rule.
+- [x] `UDCAbilitySystemComponent` on `ADCPlayerState` (§2.2) — `ADCPlayerCharacter` forwards `IAbilitySystemInterface` there, with the standard `PossessedBy`(server)/`OnRep_PlayerState`(client) `InitAbilityActorInfo` timing fix.
+- [x] `UDCDamageExecCalculation` single-entry-point damage pipeline (§2.4) — reads a `Data.Damage` SetByCaller magnitude, rolls crit (0% by default per the P1 decision below), applies flat Armor.
+- [x] `UDCGameplayAbility` base class.
+- [ ] **All 4 real Knight abilities** — not built yet. Only a throwaway C++-only test ability (`UDCGameplayAbility_TestDamage`) exists, specifically to prove replication without needing any Blueprint/montage assets. The real 4 (§2.3) come after the replication gate below passes.
+- [ ] Enhanced Input wired for the 4 abilities + movement, via a new `IMC_DC_Default` — blocked on editor access (Input Action/IMC assets can't be created via MCP, confirmed in `zombieshooter`'s own tooling notes). The test ability is triggered via an `Exec` console command instead (`DC_TestAbility_DealDamageToSelf`) so the replication gate doesn't have to wait on this.
 - [ ] Grey-box test arena (a flat room, no dungeon generation yet) to iterate combat feel in.
-- [ ] **Get one ability replicating across 2 PIE clients** — this is the actual point of doing this in week 1 rather than week 6.
+- [ ] **Get one ability replicating across 2 PIE clients** — code is written and ready to test, but **unverified**: the editor was open the whole time this was authored, so none of it has compiled yet. Needs: close the editor → regenerate project files → full `Build.bat` (or Rider/VS build) → reopen editor → set `ADCGameMode` as the level/project default GameMode (Project Settings > Maps & Modes, no Blueprint needed) → PIE with Multiplayer Options Players ≥ 2 → type `DC_TestAbility_DealDamageToSelf` in one client's console → confirm the on-screen "took X damage" message and Health value are correct **on both clients**.
 
 **Exit criteria**: two PIE clients (Multiplayer Options, Players ≥ 2, listen-server) can both activate at least one Knight ability, and its effect (damage, stagger, whatever) is visible and correct on both clients. If this doesn't work cleanly, that's the signal to stop and fix replication fundamentals before building the other 3 abilities on top of a broken foundation.
+
+**P1 design decisions (2026-08-12, answered by the dev):** attacks slow movement rather than rooting the player (a `State.Attacking` tag applies a MoveSpeed modifier for the attack's duration, not a movement block); Dash cancels Basic Attack specifically (via `CancelAbilitiesWithTag(Ability.Knight.BasicAttack)` on Dash's activation) but Shield Bash and Whirlwind commit fully once started; CritChance/CritMultiplier are plumbed through the AttributeSet and exec calc now but default to 0%, not live until a later itemization pass; the replication proof is a debug log + on-screen message, not a visual GameplayCue.
 
 ---
 

@@ -4,16 +4,22 @@ Rewritten every session — current status only, not appended to. Full history l
 
 ## Status (2026-08-12)
 
-Dev environment + full design planning + P0 reuse audit complete. No real game code written yet.
+P0 (reuse audit) done. P1 (GAS foundation) code written but **not yet compiled or tested** — the Unreal Editor was open the entire time this was authored, so a full rebuild has never run against it.
 
-- Git/Gitea/GitHub/LFS/backup infra fully wired (see `CLAUDE.md`'s Local Git Infrastructure section), push mirror confirmed working.
-- Design planning complete: `Docs/GameDevPlan.md`, `Docs/SystemsDesign.md`, `Docs/AssetPipeline.md`, `Docs/ProductionPlan.md` (P0-P4). AI architecture resolved (StateTree default, BT only as an embedded escape hatch for the boss — `GameDevPlan.md` §4.5).
-- **P0 reuse audit done** (`ProductionPlan.md` P0, findings in `SystemsDesign.md` §10). Reused-as-pattern: the `AnimNotify_DoAttackTrace` sweep, the combo montage-jump mechanism, `ACombatAIController`'s StateTree wiring, `CombatStateTreeUtility`'s condition/task library, `CombatEnemySpawner`'s activate/track-until-depleted shape, `zombieshooter`'s `UZSInteractableComponent` (ports directly) and `UZSHealthComponent`'s downed/revive state machine (port the logic, not the component — GAS owns health now). **Two things must be rebuilt, not reused**: `ACombatEnemy`'s damage/health is entirely non-replicated (no `HasAuthority()` anywhere in it) so none of that code carries over to the GAS damage pipeline; and enemy player-targeting (`EnvQueryContext_Player`, `FStateTreeGetPlayerInfoTask`) is hardcoded to player index 0 — every enemy currently would only ever see one specific co-op player and ignore the other(s). That targeting fix is now called out explicitly as a P2 blocker.
+What exists in code now: `UDCAttributeSet` (Health/Stamina/Armor/MoveSpeed/CritChance/CritMultiplier + a `Damage` meta attribute), `UDCAbilitySystemComponent` on the new `ADCPlayerState`, `UDCDamageExecCalculation` (the single damage entry point), `UDCGameplayAbility` base class, `ADCPlayerCharacter` (extends the stock `ADungeonCatCharacter` for its camera boom, forwards `IAbilitySystemInterface` to PlayerState with the correct `PossessedBy`/`OnRep_PlayerState` init-timing fix), `ADCGameMode`, and a native `Config/Tags/DungeonCatGameplayTags.ini` tag list. `DungeonCat.Build.cs` now pulls in GameplayAbilities/GameplayTags/GameplayTasks.
 
-**The repo's actual code/content is still just Epic's stock Third Person template + the three starter variants (Combat/Platforming/SideScrolling)** — none of the planning above has been built yet. Don't assume any of it exists in code just because the docs do.
+A throwaway C++-only test ability (`UDCGameplayAbility_TestDamage` + `UDCGameplayEffect_TestDamage`) exists purely to prove replication without needing Blueprint/montage/Input-Action assets (none of which can be created without editor access) — triggered via console command, not input binding. **Delete both once the real 4 Knight abilities exist.**
+
+Full checklist and the P1 design decisions (attack movement, ability-cancel rules, crit, replication-proof method) are in `ProductionPlan.md`'s P1 section — don't re-ask the dev these, they're answered there.
 
 ## Next step
 
-Start `Docs/ProductionPlan.md` **P1**: stand up the GAS foundation (`UDCAttributeSet`, `UDCAbilitySystemComponent` on `ADCPlayerState`, the 4 Knight abilities, the single-entry-point damage execution) and prove one ability replicates correctly across 2 PIE clients before building anything else on top — this is the single highest-risk item on the whole 2-month clock, per `GameDevPlan.md` §9.
+**Build and test, in this order** (the code has never compiled — treat it as unverified until this happens):
 
-Meanwhile, art (per `Docs/AssetPipeline.md`) can proceed in parallel — the master cat skeleton and the dungeon trim-kit are the two highest-value things to start modeling first, since P1/P2 will eventually need them and they don't block on any code existing yet.
+1. Close the Unreal Editor.
+2. Regenerate project files (`UnrealBuildTool.exe -projectfiles ...`, see `CLAUDE.md`).
+3. Full rebuild — `Build.bat DungeonCatEditor Win64 Development ...` (PowerShell, not Bash — see `zombieshooter`'s documented Bash-quoting gotcha with `Build.bat`). Fix whatever compile errors turn up; this was authored without a build loop, so treat a clean compile as unlikely on the first try, not a red flag.
+4. Reopen the editor, set `ADCGameMode` as the default GameMode (Project Settings > Maps & Modes — no Blueprint needed, it's a plain C++ class).
+5. PIE with Multiplayer Options, Players ≥ 2 (listen-server), type `DC_TestAbility_DealDamageToSelf` in one client's console, confirm the "took X damage" on-screen message and the resulting Health value are correct on **both** clients.
+
+If replication is broken, that's exactly the P1 gate doing its job — fix it before touching the real 4 abilities. If it works, move on to building Basic Attack/Shield Bash/Dash/Whirlwind for real (`SystemsDesign.md` §2.3), which is when Enhanced Input and the grey-box arena become necessary too.
