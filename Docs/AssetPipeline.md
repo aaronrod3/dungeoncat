@@ -53,9 +53,9 @@ Per `SystemsDesign.md` §2.3's four abilities plus core locomotion. This is the 
 - **Downed / Revive**: a downed loop + a get-up animation (co-op revive, per `SystemsDesign.md` §7).
 - **Claw Flurry combo** (tap): 3 montage sections — **Swipe → Rake → Shred** — one clip, sectioned, not 3 separate clips, matches how AnimNotify-driven combos are typically authored in the existing `Variant_Combat` pattern.
 - **Pounce** (hold-to-charge heavy, same ability/hotkey as Claw Flurry, not a separate one): a charge-loop section (crouch/wind-up, loops while held) + a release section (the leaping strike) — reuses `CombatEnemy`'s existing `ChargeLoopSection`/`ChargeAttackSection` montage-section pattern (P0 audit). Needs a genuinely distinct crouch-and-coil pose, not just a bigger swing — the charge itself is the tell that a heavy hit is coming.
-- **Shield Bash**: one montage, notify-tagged for the stagger-application frame.
-- **Dash**: one montage, notify-tagged for the invulnerability window start/end (see `SystemsDesign.md` §2.3 — the i-frame window is driven by a notify, not a timer, so the notify placement is gameplay-load-bearing, not just cosmetic).
-- **Whirlwind**: one montage, AoE-radius should visually match whatever radius the ability's GameplayEffect actually uses — coordinate the number with whoever tunes the ability data asset.
+- **Headbutt** (Shield Bash): one montage, notify-tagged for the stagger-application frame.
+- **Zoomies** (Dash): one montage, notify-tagged for the invulnerability window start/end (see `SystemsDesign.md` §2.3 — the i-frame window is driven by a notify, not a timer, so the notify placement is gameplay-load-bearing, not just cosmetic).
+- **Bunny Kick** (Whirlwind): one montage, AoE-radius should visually match whatever radius the ability's GameplayEffect actually uses — coordinate the number with whoever tunes the ability data asset.
 
 Retargeted humanoid locomotion (from Lyra/marketplace/Mixamo per the plan) can fill in anything not listed above (turn-in-place, strafing, etc.) — only the list above needs hand-authored, cat-specific animation for the vertical slice.
 
