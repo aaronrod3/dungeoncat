@@ -1,8 +1,8 @@
-# Production Plan (beta phases)
+# Production Plan (beta phases — index)
 
-Turns `GameDevPlan.md` §8's 8-week roadmap into concrete phases with checkable deliverables and PIE-verifiable exit criteria. `SessionHandoff.md` tracks which phase is actually active and what's done within it — this doc is the phase structure itself, not live status (same split `zombieshooter` uses between `Docs/Beta/` and `Docs/SessionHandoff.md`).
+Turns `GameDevPlan.md` §8's 8-week roadmap into concrete phases. `SessionHandoff.md` tracks which phase is actually active and what's done within it — this doc is the phase structure itself, not live status.
 
-Each phase lists deliverables as a checklist and an exit criteria gate — don't call a phase done until its gate is actually verified in PIE, not just "code compiles."
+**P0 and P1 are done and stay in full below.** From P2 on, each phase has its own detail doc (mirrors `zombieshooter`'s `Docs/Beta/` pattern) — this doc becomes a lightweight index for those, not the deep content itself. Each phase doc follows the same 3-stage structure: **Stage 1** (plan finalization/open questions) → **Stage 2** (do-yourself/autonomous work) → **Stage 3** (testing/manual steps needing the dev's hands).
 
 ---
 
@@ -30,7 +30,7 @@ The highest-risk phase on the whole clock is proving replication works at all, s
 - [x] **All 4 real Knight abilities implemented** (away session, 2026-08-13, Mode A per `AsyncSessionProtocol.md`) — `UDCGameplayAbility_BasicAttack` (Claw Flurry tap-combo + Pounce hold-charge, via `UAbilityTask_WaitInputRelease`/`UAbilityTask_WaitDelay` racing each other for the tap-vs-hold threshold), `UDCGameplayAbility_ShieldBash` (Headbutt), `UDCGameplayAbility_Dash` (Zoomies, cancels Claw Flurry via `CancelAbilitiesWithTag`), `UDCGameplayAbility_Whirlwind` (Bunny Kick). Throwaway test ability/effect deleted, superseded. Granted with `EDCAbilityInputID`-based `InputID`s on `ADCPlayerCharacter`, ready for Enhanced Input to call `AbilityInputPressed`/`AbilityInputReleased` once IMC_DC_Default exists.
   - **Compiled clean on the 4th attempt** (Mode A's cap) after two real bugs the compiler and a headless smoke-test caught, not guesses: (1) `EGameplayModOp::Multiplicative` isn't a real enum value (`MultiplyCompound` is), plus the deprecated `AbilityTags` property needed `SetAssetTags()` instead. (2) **Bigger one**: `UGameplayEffect::FindOrAddComponent<UTargetTagsGameplayEffectComponent>()` (the mechanism for granting a GameplayTag from a GameplayEffect in UE5.8's post-5.3 GameplayEffectComponent system) crashes with a fatal error when called from the GE's own constructor ("NewObject with empty name can't be used to create default subobjects... Use ObjectInitializer.CreateDefaultSubobject<> instead") — caught by the Tier-1 headless smoke test, not the compiler, exactly why that step exists separately from the compile gate. **Architecture pivot in response**: state tags (`State.Invulnerable` for Zoomies) now use `UAbilitySystemComponent::AddLooseGameplayTag`/`RemoveLooseGameplayTag` called directly from ability code at runtime instead of a GameplayEffect granting the tag; cooldowns (Headbutt/Zoomies/Bunny Kick) use manual timestamp tracking (`UDCGameplayAbility::CooldownDurationSeconds`/`StartCooldown()`/`CanActivateAbility()` override) instead of GAS's `CooldownGameplayEffectClass` system, since that also requires a GE to grant a cooldown tag via the same broken mechanism. **Scope cut, clearly flagged, not silent**: Headbutt's Stagger application is deferred — nothing in the codebase reads `State.Staggered` yet (no enemy AI exists, P2 work), so it wasn't worth working around the crash blind for an unconsumed tag. Headbutt deals damage only for now; revisit with the same loose-tag pattern once an enemy needs to react to it.
   - Smoke-tested clean (headless `-nullrhi` launch, no crash/assert signature) after the fix, confirmed via log inspection, not assumed.
-- [ ] Enhanced Input wired for the 4 abilities + movement, via a new `IMC_DC_Default` — still blocked on hands-on editor work (Input Action/IMC asset creation), not on code.
+- [ ] Enhanced Input wired for the 4 abilities + movement, via a new `IMC_DC_Default` — still blocked on hands-on editor work (Input Action/IMC asset creation), not on code. **Scope addition 2026-08-13**: controller support is now planned from the start (`SystemsDesign.md` §9), not just KBM — this needs a gamepad-equivalent input context too, not only `IMC_DC_Default`.
 - [ ] Grey-box test arena (a flat room, no dungeon generation yet) to iterate combat feel in.
 - [ ] **Not yet PIE-tested** — the away session's ceiling is "compiles clean + smoke-tested," per `AsyncSessionProtocol.md`'s known limits. Real gameplay verification (does Claw Flurry's combo timing feel right, does Pounce's trace actually reach, does Zoomies' cancel-into-Basic-Attack work as intended) needs a human at the keyboard with 2 PIE clients, same as the original replication proof.
 
@@ -42,38 +42,15 @@ The highest-risk phase on the whole clock is proving replication works at all, s
 
 ## P2 — Dungeon + AI v1 (Weeks 3-4)
 
-- [ ] Room module grid/socket convention in place per `AssetPipeline.md` §5 (needs at least the minimal room catalog: entry, one combat room, one corridor, exit).
-- [ ] `ADCDungeonGenerator` implementing the graph-stitching algorithm (`SystemsDesign.md` §4.2), seed-driven.
-- [ ] Runtime NavMesh rebuild (`SystemsDesign.md` §4.3).
-- [ ] **Fix player targeting for multi-player before any enemy AI work** — the existing `EnvQueryContext_Player`/`FStateTreeGetPlayerInfoTask` only ever see player index 0 (`SystemsDesign.md` §10 finding). Rewrite both to consider every entry in `GameState->PlayerArray` first; every archetype below depends on this being correct, not just the melee chaser.
-- [ ] Two enemy archetypes — melee chaser + ranged spitter — as StateTree AI (`SystemsDesign.md` §5), each a `DA_DC_EnemyConfig_*` instance off one shared `ADCEnemyCharacter` base.
-- [ ] Basic loot pickup (no rarity/affix system yet — just "pick up, add to inventory").
-
-**Exit criteria**: same seed produces the same dungeon layout twice in a row (verify explicitly, don't assume); both enemy archetypes chase/attack correctly in PIE against a solo player; a generated dungeon is fully nav-mesh-covered (no enemy gets stuck failing to path).
-
----
+Full detail: **`Docs/P2_DungeonAI.md`**. Summary: two enemy archetypes (melee chaser + ranged spitter) as StateTree AI with concrete tuning numbers, the multiplayer-targeting bug fix, and basic loot pickup — all buildable now. Dungeon generation itself (room catalog, generation algorithm) is **blocked pending the dev's dungeon-generation-technique decision** (reopened 2026-08-13, see `SystemsDesign.md` §4).
 
 ## P3 — Co-op replication hardening (Weeks 5-6)
 
-Budget the most debugging time here — per `GameDevPlan.md` §9 this is the real risk window on the whole timeline.
+Full detail: **`Docs/P3_CoopHardening.md`**. Summary: server-authority audit (7-scenario test checklist) with 2 real clients, swarm/leaper archetype, co-op downed/revive, 4-player forward-compat pass. Session model and Hub-as-lobby are already resolved, not open items here anymore.
 
-- [ ] Every ability, enemy action, and loot pickup from P1/P2 audited for server-authority correctness with **2 players**, not just 1 (things that "work" solo often don't once a second client's prediction/replication timing is in the mix).
-- [ ] Listen-server join flow — direct-IP or Steam invite (`SystemsDesign.md` §3.1's open item, resolve during this phase).
-- [ ] Co-op downed/revive (`SystemsDesign.md` §7).
-- [ ] Swarm/leaper archetype added (third enemy archetype), since flanking behavior is where multi-enemy-vs-multi-player replication edge cases are most likely to surface.
+## P4 — Get-item-escape loop + boss (Weeks 7-8)
 
-**Exit criteria**: a full solo-playable loop (enter, fight, loot) also works correctly with 2 real PIE/networked clients, including a revive and at least one enemy encounter with all 3 archetypes present simultaneously. If this phase slips, the documented fallback (`GameDevPlan.md` §8) is to ship the beta solo-playable with co-op wired-but-rough and harden it after — don't silently cut co-op scope without updating `GameDevPlan.md` §2.1's decision if that fallback gets used.
-
----
-
-## P4 — Get-item-escape loop + boss stub (Weeks 7-8)
-
-- [ ] Objective item spawn + pickup, exit volume + extraction logic (reach exit while carrying the objective = run success).
-- [ ] Boss stub — StateTree top-level, decide during this phase whether pure StateTree or a StateTree+embedded-BT hybrid per `GameDevPlan.md` §4.5's "let the real complexity decide it" note.
-- [ ] Run-end flow (success/fail screen, loot summary) per `SystemsDesign.md` §8.
-- [ ] Balance/bug pass on the full loop.
-
-**Exit criteria**: the full MVP loop from `GameDevPlan.md` §7 works end-to-end, in co-op, PIE-verified: enter → fight through both enemy archetypes → grab the objective → survive the boss stub or avoid it → reach the exit → run-end screen shows correct loot. This is the beta-complete gate.
+Full detail: **`Docs/P4_LoopAndBoss.md`**. Summary: objective item + extraction logic, the Swarm-mother boss (2 phases, fully speced in `SystemsDesign.md`'s Boss design section), run-end flow, balance pass. Boss-gates-objective structure and boss identity are already resolved, not open items here anymore.
 
 ---
 

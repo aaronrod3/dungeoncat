@@ -86,6 +86,9 @@ Commit to GAS early. It is the correct foundation for 4 classes and 8 eventual s
 There's a learning curve. Budget time in preproduction to get comfortable; it pays back across every class.
 
 ### 4.2 Procedural dungeon generation
+
+**⚑ REOPENED 2026-08-13** — the dev is reconsidering the generation technique/approach. The "prefab-room graph stitching" content below is **not currently a settled decision**, despite reading as one — kept here for reference, not as instruction, until the dev confirms a direction. See `SystemsDesign.md` §4 and `Docs/P2_DungeonAI.md` for the live status.
+
 Go **prefab-room graph stitching**, not full geometry synthesis (skip wave-function-collapse for v1).
 
 - Build a library of hand-authored room modules from a shared modular kit.
@@ -111,7 +114,7 @@ StateTree and BT are not mutually exclusive — since UE 5.3, a StateTree state 
 
 - **StateTree owns the top level, always.** This repo's existing scaffold (`Variant_Combat`'s `AI/CombatAIController`, `CombatEnemy`, `CombatStateTreeUtility`, EQS contexts) is already a working StateTree + EQS pattern — reuse and extend it rather than introducing a second AI paradigm from scratch, per the reuse pillar (§3.4/§4.7). StateTree is also Epic's forward direction (data-driven, hierarchical state composition, cleaner Smart Object integration than BT), and every enemy needs the same replicated top-level states regardless of archetype: `Idle -> Investigate -> Chase -> Attack -> Downed -> Dead`, parameterized per archetype via StateTree parameters rather than forked into separate graphs.
 - **Melee chaser, ranged spitter, swarm/leaper: pure StateTree, no BT.** Their behavior is a handful of states plus an EQS query for positioning (melee = closest-approach rush; ranged = maintain-distance-and-strafe via a ring query; swarm = flank/surround via multiple candidate points scored for spacing). StateTree alone expresses this cleanly — don't reach for BT here.
-- **Boss: StateTree top level (Idle/Aggro/Phase transitions/Dead, replicated), optionally a Behavior Tree embedded for the "in-combat, current phase" leaf state.** Multi-phase, multi-attack-pattern, heavily-telegraphed boss logic is the one case where BT's mature decorator/service/composite tooling can be genuinely faster to author and iterate on than deeply nested StateTree sub-states. Try StateTree-only first when the boss stub gets built (§7/§8 week 7-8) — only drop into the BT escape hatch if the phase logic actually gets unwieldy in pure StateTree. Don't pre-decide this; let the first boss's real complexity decide it.
+- **Boss: pure StateTree — resolved 2026-08-13.** This was originally left as "let the first boss's real complexity decide it" (try StateTree first, keep a BT escape hatch for the "in-combat, current phase" leaf state if it got unwieldy). The beta boss is now actually scoped (Swarm-mother, 2 phases, ~3-4 total attack patterns — full design in `SystemsDesign.md`'s Boss design section), and that scope is squarely inside what pure StateTree already handles cleanly per the bullet above ("don't reach for BT" for a handful of states). Build it pure StateTree; only reach for the BT embedded-task escape hatch if implementation actually proves it unwieldy, which is unlikely at this scope.
 - Every archetype's StateTree extends the existing `CombatStateTreeUtility` conditions/considerations convention rather than inventing a parallel one — new archetype-specific conditions get added there, not in a new utility class per archetype.
 
 ### 4.6 Input & other systems
@@ -153,6 +156,10 @@ Class identities and full 16-ability roster (all 4 classes, named and kit-design
 | Multiplayer | 4-player co-op | 2-player co-op |
 
 ---
+
+## 6.1 Structural rule: boss gates the final objective (added 2026-08-13)
+
+Every game mode — not just Get-item-escape — has a final boss mandatorily guarding its final objective, "almost like Raids in WoW": never optional, never avoidable. This is a structural rule for the whole content-scope table above, decided once here rather than re-litigated per mode as Kill-boss/Rescue/Combo get designed later. Full loop detail (including the Hub World players stage runs from): `Docs/GameplayLoops.md`.
 
 ## 7. MVP / vertical slice (the thing to build first)
 

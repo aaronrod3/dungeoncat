@@ -29,15 +29,10 @@ One `UDCAttributeSet` for the beta (single class). Fields:
 ### 2.2 ASC placement: PlayerState, not Character
 Attach `UDCAbilitySystemComponent` + `UDCAttributeSet` to `ADCPlayerState`, not `ADCPlayerCharacter`. Reasoning: the character is expected to be destroyed/respawned on death (§7 below), and a PlayerState-hosted ASC survives that, avoiding an ASC re-init + ability re-grant dance on every respawn. Standard pattern for GAS games without pawn-possession-swapping mid-match. `ADCPlayerCharacter` still implements `IAbilitySystemInterface::GetAbilitySystemComponent()` by forwarding to its `PlayerState`.
 
-### 2.3 Abilities (Knight beta spec — 4 abilities)
-Grey-box functional spec; exact numbers are tuning, not architecture:
+### 2.3 Abilities
+Actual class/ability content (identities, names, kits, weapons, mastery-line skills) now lives in `Docs/Classes.md` — this section stays technical-architecture only. Every ability is a `UDCGameplayAbility` subclass (a thin base adding convenience getters mirroring `zombieshooter`'s `UZSUserWidgetBase` convenience-getter pattern — `GetDCPlayerCharacter()`, `GetDCAttributeSet()`, plus the shared melee-trace/effect-application helpers added in P1). Activation is server-authoritative (`NetExecutionPolicy = ServerInitiated` or `LocalPredicted` once prediction is worth the complexity — start `ServerInitiated` for the beta, revisit prediction only if input latency is actually a felt problem in co-op testing, not preemptively).
 
-1. **Claw Flurry / Pounce** (`GA_DC_Knight_BasicAttack` — internal identifier unchanged, these are player-facing flavor names layered on top per the naming convention's "pick the identifier once" rule) — one ability, tap-vs-hold, deliberately kept as a single hotkey rather than a 5th ability slot (`GameDevPlan.md` §3.3's kit-size budget). Tapping chains **Claw Flurry**, a Vermintide-style cleave combo (**Swipe → Rake → Shred**, 3 montage sections in one clip, not 3 separate abilities) that cleaves through multiple weak enemies — reuses the existing `Variant_Combat` `AnimNotify_*` attack-trace pattern (don't reinvent hit detection, port it), but input-buffered (continues only on a fresh press inside the combo window, not `CombatEnemy`'s AI-random hit count). Holding instead charges **Pounce**, a Souls-style heavy variant for a single tough target — reuses `CombatEnemy`'s existing charge-loop montage-section mechanism (`ChargeLoopSection`/`ChargeAttackSection`, confirmed reusable in the P0 audit) rather than inventing a new charge system.
-2. **Headbutt** (`GA_DC_Knight_ShieldBash` — identifier unchanged) — short-range gap-closer + stagger (applies `State.Staggered` via a `GE_DC_Stagger` GameplayEffect with a tag-based duration). Stamina cost. A real cat headbutt/"bunt" reflavored as a forward shield-charge — the affection-gesture-as-stagger joke is deliberate.
-3. **Zoomies** (`GA_DC_Knight_Dash` — identifier unchanged) — mobility/repositioning, i-frames during the active window (a `GameplayEffect` granting `State.Invulnerable` for the dash's active frames, removed on montage end via a notify, not a timer — avoids drift between animation and gameplay window). Named for the real cat-owner term for a sudden hyperactive running burst — the most on-hook name of the four.
-4. **Bunny Kick** (`GA_DC_Knight_Whirlwind` — identifier unchanged) — AoE around the player, the "crowd control" tool for the swarm/leaper archetype. Cooldown-gated via a `GE_DC_Cooldown_Whirlwind` effect with the ability's own tag. Named for the real rapid-fire hind-leg-kick behavior a cat uses on anything it's pinned in a play-fight — a near-literal match for "spin and hit everything around you."
-
-All four are `UDCGameplayAbility` subclasses (a thin base adding convenience getters mirroring `zombieshooter`'s `UZSUserWidgetBase` convenience-getter pattern — `GetDCPlayerCharacter()`, `GetDCAttributeSet()`, etc.). Activation is server-authoritative (`NetExecutionPolicy = ServerInitiated` or `LocalPredicted` once prediction is worth the complexity — start `ServerInitiated` for the beta, revisit prediction only if input latency is actually a felt problem in co-op testing, not preemptively).
+Internal GAS identifiers for the Knight's 4 abilities (unchanged regardless of player-facing flavor names, per the naming convention's "pick the identifier once" rule): `GA_DC_Knight_BasicAttack` (Claw Flurry/Pounce), `GA_DC_Knight_ShieldBash` (Headbutt), `GA_DC_Knight_Dash` (Zoomies), `GA_DC_Knight_Whirlwind` (Bunny Kick). Implementation status: `ProductionPlan.md` P1.
 
 ### 2.4 Damage pipeline
 Single entry point, no exceptions: all damage flows through one `UDCAttributeSet`-side `ExecutionCalculation` (`UDCDamageExecCalculation`), invoked only via a `GameplayEffect` applied through `ASC->ApplyGameplayEffectSpecToTarget`. Nothing else mutates `Health` directly — mirrors `zombieshooter`'s `UZSHealthComponent` convention (`AZSPlayerCharacter::TakeDamage` is the *only* path that reaches `Server_ApplyDamage`), which is a proven pattern worth carrying over verbatim rather than re-deriving.
@@ -45,34 +40,16 @@ Single entry point, no exceptions: all damage flows through one `UDCAttributeSet
 ### 2.5 GameplayCues
 VFX/SFX are `GameplayCue` handlers (`GC_DC_*`), never triggered directly from ability C++/BP logic — keeps presentation swappable by the person doing art/audio pass without touching gameplay code, and cues replicate correctly to all co-op clients for free.
 
-### 2.6 Post-beta classes (Rogue, Wizard, Healer) — not in beta scope
+### 2.6 Post-beta classes
 
-Per `GameDevPlan.md` §6, the full-release vision is 4 classes / 8 specializations; the beta ships Knight only. Ability kits for the other three are speculative-but-decided (identity + kit locked 2026-08-12, not yet built) — recorded here so the design work isn't lost, not because any of it is scheduled. Same 4-slot structure as Knight (basic attack, playmaking tool, mobility/control, signature payoff), same real-cat-behavior naming voice as §2.3.
+Moved to `Docs/Classes.md` — Rogue/Wizard/Healer's identities, weapons, ability names, and mastery-line skills all live there now, along with the skill/progression system brainstorm. Per `GameDevPlan.md` §6, the full-release vision is 4 classes / 8 specializations; the beta ships Knight only. None of the other three classes are implemented — don't let `Docs/Classes.md`'s level of detail imply otherwise.
 
-**Rogue — ambush predator.** Opener/burst role, not sustained DPS — the whole identity is stalk-then-strike, deliberately distinct from Knight's sustained-cleave-tank role so the two melee classes don't feel like reskins of each other.
-- **Quickclaw** — basic attack, a faster/lighter multi-hit combo than Claw Flurry — chip damage between openers, not the main damage source.
-- **Slink** — stealth/setup: reduces detection, enables repositioning behind or away from a target.
-- **Ambush** — the payoff: a guaranteed-bonus-damage strike, full power only from Slink or from behind the target.
-- **Hiss** — escape/defensive: short-range intimidation burst, nearby enemies flinch/back off.
-
-**Wizard — familiar/hex caster.** Curse/control specialist that sets up kills for the team rather than pure nuking — leans into the witch's-familiar folklore hook instead of generic elemental blasting.
-- **Jinx** — basic attack, ranged cursed bolt.
-- **Evil Eye** — single-target curse/root/mark.
-- **Hairball** — lobbed AoE, explodes into a damage-over-time zone. Deliberately the one joke ability in the whole roster.
-- **Nine Lives** — signature: an activated ward absorbing the next lethal hit (self or ally — TBD once this actually gets built).
-
-**Healer — purr and groom support.** Proactive (heal-pulse, shields) rather than reactive click-to-heal, since reactive healing fits fast action combat poorly. Combat-capable, not a pure healbot, per the class-expression pillar (`GameDevPlan.md` §3).
-- **Swat** — basic attack, deliberately lighter than the other three classes' — Healer fights, but it isn't the kit's main draw.
-- **Purr** — signature: proactive AoE heal-pulse.
-- **Groom** — proactive shield/barrier on an ally or self.
-- **Biscuits** — party buff/rally (exact effect TBD — haste and regen are the leading candidates).
-
-Full 16-ability roster now named (4 classes × 4 abilities). None of it is implemented — Knight's 4 (§2.3) are the only ones with real GAS classes, and even those are grey-box/not-yet-built per `ProductionPlan.md`. Don't let this section's level of detail imply otherwise.
+**Specialization system** (the "8 total" promise): each spec = the existing 4-ability kit plus one binary modifier choice on a single existing ability — not a talent tree, not new ability slots. Keeps "class expression, not class bloat" (`GameDevPlan.md` §3) intact; needs only one alternate-effect branch + one choice screen in Loadout per spec, not a sprawling new system.
 
 ## 3. Co-op & replication
 
 ### 3.1 Session model
-Listen-server only for the beta (matches `GameDevPlan.md` §8 scope) — one player hosts via Steam Sessions (if Steam integration is already available from prior projects) or direct-IP/Steam-invite-join, no dedicated-server packaging, no host migration. If the host disconnects, the session ends — acceptable for a 2-player, 8-12-minute run; document this as a known beta limitation, not a bug to chase.
+Listen-server only for the beta (matches `GameDevPlan.md` §8 scope) — one player hosts, joined via **direct-IP** (resolved 2026-08-13: no Steam/OnlineSubsystem integration exists anywhere in this project or in `zombieshooter`, confirmed by checking both codebases directly — `zombieshooter`'s own production docs call Steam/EOS integration a still-open item there too and state "direct-IP only is much simpler and is what the project has assumed throughout." Nothing to reuse; direct-IP is the real near-term answer regardless of the dev's eventual storefront choice, Steam vs. Epic, which remains genuinely undecided and doesn't need to be to build this). No dedicated-server packaging, no host migration. If the host disconnects, the session ends and remaining players return to the Main Menu — acceptable for a 2-player, 8-12-minute run; document this as a known beta limitation, not a bug to chase. Non-host mid-run disconnect: despawn their pawn/clean up their ASC, remaining player(s) continue rather than the run auto-failing.
 
 ### 3.2 Server authority
 Every ability, health change, enemy action, and loot pickup is server-authoritative from the first line — this is decision §2.1's non-negotiable, not a retrofit target. Concretely: `Server_` RPC prefix convention for every mutator (matches `zombieshooter`'s convention exactly — carry it over), `HasAuthority()` guards on every state-changing function, `ReplicatedUsing=OnRep_X` + `OnRep_X` broadcasts a delegate for every replicated property UI/animation cares about. **Never poll replicated state directly** from Tick or Blueprint — this specific mistake is called out because it's the easiest one to make under time pressure and the hardest to debug once several systems depend on the polled value being fresh.
@@ -81,6 +58,8 @@ Every ability, health change, enemy action, and loot pickup is server-authoritat
 Per `GameDevPlan.md` §8/§9, weeks 5-6 are the highest-risk window on the whole 2-month clock. Concretely de-risk it by proving one ability replicates correctly across 2 PIE clients in **week 1**, not after the rest of combat is built — see `ProductionPlan.md` P1's exit criteria.
 
 ## 4. Procedural dungeon generation
+
+**⚑ REOPENED 2026-08-13** — the dev is reconsidering the dungeon-generation technique/approach; the "prefab-room graph stitching" decision below (and `GameDevPlan.md` §4.2's matching DECISION) is **not currently settled**, despite the confident language throughout this section. Do not start P2 dungeon-generation implementation work (room catalog, door-socket convention, the generation algorithm) against this section until the dev confirms a technique. Everything else in this doc (AI, itemization, saves, UI, etc.) is unaffected and can proceed. See `Docs/P2_DungeonAI.md` for the live status of this blocker.
 
 ### 4.1 Room module grid
 - Base grid unit: **400 uu** (matches common UE modular-kit convention, and is a clean multiple of the Mannequin-derived cat's capsule radius).
@@ -115,30 +94,78 @@ All four share one base `ADCEnemyCharacter` + one base StateTree schema (extends
 
 **Multi-config rule** (carried over from `zombieshooter`, worth stating explicitly here too): a new enemy is a new `DA_DC_EnemyConfig_*` data asset instance (speed/health/senses/damage/mesh/StateTree params), never a new C++ subclass. New enemies should be mostly art + a new config asset once the four archetypes exist.
 
+### 5.1 Concrete AI specs (added 2026-08-13, replaces the prose-only table above with real numbers)
+
+| Archetype | States/transitions | EQS |
+|---|---|---|
+| Melee chaser | Idle→Investigate (AIPerception sight/hearing)→Chase (until within AttackRange)→Attack (reused P0 sweep)→brief recover→loop | Closest-valid-approach-point, 150-250uu radius, nav-reachable + LOS filtered |
+| Ranged spitter | Idle→Investigate→Chase (until within a preferred-range band)→Attack; Retreat state if player <400uu, Approach state if >900uu | Ring query, 750uu radius, 12-16 candidates, LOS filtered, scored to avoid stacking with other enemies |
+| Swarm/leaper | Idle→Investigate→Flank (biased approach angle per member)→Leap-Attack (300-500uu trigger range)→recover | Multi-point, 6-8 candidates, scored for ≥150uu spacing from other swarm members + distinct angle bucket |
+
+**Tuning numbers**, anchored to the player's actual 100 HP / 100 Stamina (`UDCAttributeSet` defaults) — the stock `ACombatEnemy` template's numbers (1.0 dmg etc.) are toy values sized to a trivial dummy pool and are explicitly not portable:
+
+| Archetype | Health | Damage/hit | Notes |
+|---|---|---|---|
+| Melee chaser | 30 | 8-10 | ~3 Claw Flurry swipes to kill |
+| Ranged spitter | 20 | 6-8 | glassier, punishes melee engagement |
+| Swarm/leaper | 12-15 each | 5-6 each | weak alone, dangerous in numbers of 3-5 |
+
+**Difficulty curve** (density/mix progression across a run, deliberately room-graph-independent since the dungeon-generation technique is reopened, §4): early encounters are 2-3 melee chasers only; mid encounters add a ranged spitter to the mix; late encounters go 3-4 mixed including swarm; the encounter immediately before the boss-gated objective is the largest "spike" (4-5 mixed) before committing to the boss. ~15-25 enemies total per run, sized to the 8-12 min pillar at roughly 20-40s per encounter.
+
 ## 6. Itemization & loot
 
+Actual item/weapon/clothing/loot content now lives in `Docs/Items.md` — this section stays technical-architecture only.
+
 - `UDCItemConfig` DataAsset: display name, icon, rarity tier, equip slot (if any), granted `GameplayEffect`(s) for stat modifiers. Mirrors `zombieshooter`'s `UZSItemConfig` shape closely enough to port the pattern, not the content.
+- No equip/inventory UI for the beta — stat trinkets auto-apply their `GameplayEffect` on pickup, consumables are usable from a simple carried-list. Avoids scope creep into a full inventory screen the beta doesn't need.
+- Pickup via `UDCInteractableComponent` (P0-audit-confirmed portable) — interact-prompt, not walk-over auto-pickup, so "who grabs it" stays server-authoritative-simple in co-op.
 - Rarity tiers for the beta: Common / Uncommon / Rare / Epic (4 tiers is enough to feel ARPG-ish without needing a full affix system yet — procedural affixes are explicitly post-beta per `GameDevPlan.md` §4.6).
 - Drop tables: one `DA_DC_LootTable_*` per enemy archetype + one per room type (Combat/Loot/Boss), rolled server-side only.
+- **Skill-gated containers** (new, per the skill/progression brainstorm in `Docs/Classes.md`): a lockable container carries `RequiredSkill` (`FGameplayTag`) + `RequiredSkillLevel` (`int32`); locked until the opening player's tracked skill level meets the requirement. Skill levels live in a new replicated `TMap<FGameplayTag, int32>` on `ADCPlayerState` — profile-scope progression, persists via §7's save system, not run-scope. The actual skill list is a living, ongoing design effort (`Docs/Classes.md`), not fixed here.
 
 ## 7. Progression & saves
 
 Two separate, non-overlapping save scopes — don't let them blur:
 
-- **Profile save** (persistent across runs): cosmetic unlocks, meta-currency, class/spec unlocks (post-beta). One `USaveGame` per player profile.
+- **Profile save** (persistent across runs): cosmetic unlocks, meta-currency, class/spec unlocks (post-beta), skill levels (§6). One `USaveGame` per player profile, with a `SaveVersion` (`int32`) field from day one — the beta needs no migration logic yet, but adding the field now is free and expensive to retrofit later. Autosave trigger: the Run-End screen only, since nothing changes profile-state mid-run in beta scope.
 - **Run state** (ephemeral, in-memory only for the beta): the current dungeon's seed, room graph, and per-player loot-carried-this-run. **No mid-run save/resume for the beta** — this is a deliberate design choice, not a cut corner: it preserves the extraction *tension* pillar (§3 in `GameDevPlan.md`) that a failed run has real stakes. Revisit only if playtesting says runs need to be pause-and-resume-able, which would be a pillar-level conversation, not a quiet architecture change.
 
 Death handling (co-op, no permadeath for the beta): a downed player can be revived by a teammate within the run; a solo-downed player with no teammate available fails the run (matches the co-op-PvE decision — no permanent character loss, the *run's* loot is what's at stake, not the character).
 
 ## 8. UI/UX flow
 
-`Main Menu → Lobby (host/join) → Loadout (beta: fixed Knight, no real choice yet, but build the screen so post-beta class selection slots in without a rebuild) → Dungeon HUD (per-player health/stamina bars, objective tracker; minimap is explicitly cut from the beta per GameDevPlan.md §6) → Run-End screen (extract success/fail, loot summary) → back to Hub.`
+`Main Menu (title screen: New/Continue/Quit) → Hub World (persistent shared space, see Docs/GameplayLoops.md — loadout/vendor/dummies/portal are physical interactables, not menu buttons) → [interact Portal: Host/Join direct-IP] → Dungeon HUD (per-player health/stamina bars, objective tracker, full-screen map toggle — see Docs/GameplayLoops.md's fog-of-war design, replaces the earlier "minimap cut" note) → Run-End screen (extract success/fail, loot summary — success keeps all run-carried loot, failure loses it; profile-scope unlocks/skill-levels persist regardless of run outcome, a separate save scope from run loot) → back to Hub.`
+
+**Settings/Options menu** (previously absent from the flow entirely): reachable from Main Menu and as a non-pausing Dungeon HUD overlay — co-op action combat never pauses in real-time for one player, matching `zombieshooter`'s explicit precedent. Beta contents: volume/audio placeholder sliders, key/gamepad-rebind stub (see §9's controller-support decision), Leave-run action.
+
+**Error/disconnect states** (previously unaddressed): host-disconnect toast + return to Main Menu (§3.1), join-failure message, generic connection-lost fallback.
+
+**Downed/revive UI**: screen-edge desaturation + revive prompt + countdown. Spec: 60s downed duration before a solo player's run fails; revive requires a teammate within ~150uu channeling ~3s; a downed player crawls slowly, has no abilities, and is still finishable by a fresh hit (matches the ported `zombieshooter` state machine's "already downed = finishing blow," `SystemsDesign.md` §10's reuse audit).
 
 Every HUD/menu widget is a dedicated `UDCUserWidgetBase` subclass (native `BindWidget` + `NativeConstruct` wiring, Blueprint side is layout/Class-Defaults only) — mirrors `zombieshooter`'s B1 UI convention, which the dev already validated works well for a solo-dev Claude-Code-assisted pace.
 
 ## 9. Camera & controls
 
 Third-person, over-the-shoulder — `GameDevPlan.md`'s header explicitly says "third person," which resolves what could otherwise read as ambiguous against the Diablo-4 comparison (Diablo 4 is isometric; the visual/control reference is Dark and Darker's camera, not Diablo's). Reuse the existing stock template's `DungeonCatCharacter` camera-boom setup as the starting point rather than building a camera system from scratch — it's already third-person and already in the repo.
+
+FOV 90. No hard target-lock — a soft auto-face-toward-nearest-target-in-cone on attack-input instead, readable without lock-on system complexity (and works equally well on controller, see below). Standard spring-arm collision, no custom camera-collision system needed for grey-box.
+
+**Controller support, planned from the start** (2026-08-13 decision — overrides an earlier draft recommendation to cut it for the beta; that was `zombieshooter` precedent, not this project's call). Enhanced Input targets both KBM and gamepad from day one, not gamepad-as-an-afterthought: movement on the left stick, camera on the right stick, the 4 Knight abilities on face buttons (Claw Flurry/Pounce on the primary face button since it's tap-vs-hold, Headbutt/Zoomies/Bunny Kick on the others), interact on a shoulder button. This is a real scope addition to the still-blocked Enhanced Input work — `IMC_DC_Default` needs a gamepad-equivalent context alongside the KBM one, not just KBM. Tracked in `Docs/P2_DungeonAI.md`.
+
+## Audio
+
+Not addressed anywhere in the docs until now. Policy: every `GameplayCue` (§2.5) gets its hook point created — even silent/placeholder — as each ability/system is built, so wiring isn't deferred to a late scramble. Real sound design (actual SFX/music/VO, middleware decision if any) is a post-beta pass, matching the grey-box-art precedent already applied everywhere else.
+
+## Boss design (Swarm-mother — the beta's only boss)
+
+Identity: an enlarged vermin matriarch that spawns adds using the same swarm/leaper archetype (§5) already planned for P2/P3 — reuses assets/AI instead of needing bespoke boss-only content, and is the most on-hook choice for the "cat vs vermin" marketable hook (`GameDevPlan.md` §1). Decided 2026-08-13, the one live creative question asked this design pass.
+
+- **Phases**: 2, threshold split at 50% HP.
+- **Telegraphs**: every attack gets a visible ~0.5-1s wind-up (animation + optional cue) before it lands — matches the readable pillar and gives co-op players a fair dodge window.
+- **Phase 2 change**: a new attack pattern, plus 2-3 swarm adds spawn, reusing swarm-archetype content directly.
+- **Arena**: mechanically flat for the beta stub (no hazards) — matches "boss stub," not "boss vertical slice." Environmental mechanics are a good post-beta expansion.
+- **This resolves `GameDevPlan.md` §4.5's deferred StateTree-vs-BT call**: 2 phases / ~3-4 total attack patterns is squarely inside what §4.5 already says pure StateTree handles cleanly ("don't reach for BT" for a handful of states). Default to pure StateTree for the beta boss — only reach for the BT escape hatch if implementation actually proves it unwieldy, which is unlikely at this scope. The call was framed as "let complexity decide it"; now that the complexity is scoped, it decides in favor of pure StateTree.
+- **Boss-gates-objective**: the boss is a mandatory encounter immediately before the final objective, never optional — see `Docs/GameplayLoops.md` for the full structural rule (applies to every future game mode, not just this one).
 
 ## 10. P0 reuse audit findings (2026-08-12)
 
@@ -159,8 +186,9 @@ Verified against the actual code (not memory) per `ProductionPlan.md` P0. Correc
 - **Player targeting is hardcoded to player index 0.** `EnvQueryContext_Player::ProvideContext` calls `UGameplayStatics::GetPlayerPawn(Owner, 0)` — literally "the first local player," full stop. `CombatStateTreeUtility`'s `FStateTreeGetPlayerInfoTask` has the same single-target assumption baked into its instance data (`TargetPlayerCharacter`, singular). **In a 2-player co-op session, every enemy would perceive and target only Player 0 and completely ignore Player 1.** This blocks every enemy archetype until fixed — rewrite both the EQS context and the StateTree task to consider all of `GameState->PlayerArray` (nearest, or threat-scored) before `ProductionPlan.md` P2's enemy work starts, not after.
 - `zombieshooter`'s `Weapons/` (ranged/magazine/ammo/jam systems) — not relevant to the melee-only Knight beta. Skip entirely; revisit only if/when a ranged player class is added post-beta.
 
-## 11. Open items to resolve during P1 (not blocking planning, but not yet decided)
+## 11. Open items (not blocking planning, but not yet decided)
 
 - Exact Stamina regen/drain curve (tuning, needs the grey-box arena to feel out).
 - Whether ability activation goes `ServerInitiated` or `LocalPredicted` long-term (§2.3 — start server-initiated, revisit only if latency is a felt problem).
-- Steam Sessions vs direct-IP for the beta's join flow (§3.1) — depends on whether Steam integration already exists from a prior project to reuse.
+- ~~Steam Sessions vs direct-IP~~ — **resolved 2026-08-13**, see §3.1. Direct-IP, no Steam integration exists to reuse.
+- **Dungeon generation technique** — reopened 2026-08-13, see §4's flag. The dev is reconsidering the approach; nothing in §4 should be treated as settled until confirmed.

@@ -28,8 +28,8 @@ root
    └─ thigh_r → calf_r → foot_r → ball_r
 ```
 
-- **Paws, not hands**: cartoon cat paws don't need a 5-finger rig. One or two simplified digit bones per paw (`hand_l` → `thumb_01_l`-equivalent at minimum) is enough for gear/weapon grip poses to look right — full finger articulation is effort the beta doesn't need. Confirm against a grip-pose test (holding a sword/shield) before deciding how many digit bones are actually necessary.
-- **Ears and tail are the two cat-specific additions** to an otherwise-standard humanoid hierarchy — everything else should map 1:1 to Manny bone names so IK Retargeter setup is close to plug-and-play. Ears can be simple 1-bone swing joints; they're a secondary-motion nicety, not gameplay-critical.
+- **Paws, not hands**: cartoon cat paws don't need a 5-finger rig. **Recommended: 2 digit bones per paw** (one opposable-ish digit + one fused-pad bone) — the sword/shield grip-pose test is the reason: 1 bone risks a flat, wrong-reading grip at third-person camera distance, and 2 is enough without needing full finger articulation. Still provisional — confirm against a real grip-pose test once the skeleton exists, this is a recommendation, not a verified fact.
+- **Ears and tail are the two cat-specific additions** to an otherwise-standard humanoid hierarchy — everything else should map 1:1 to Manny bone names so IK Retargeter setup is close to plug-and-play. Ears can be simple 1-bone swing joints; they're a secondary-motion nicety, not gameplay-critical. **Tail root: recommended `spine_01`** (not `pelvis`) — lets the tail inherit spine twist/lean during combat (Pounce's leaping thrust, Claw Flurry's rotational swings), which should read as better combat flourish than a pelvis-rooted tail. Same caveat: provisional, verify in-engine once there's a skeleton to test against.
 - Target proportions: gameplay-readable silhouette at third-person camera distance, roughly **100-110cm** at head height (upright). Exact number is an art call — the constraint is "reads clearly as a small predator" (pillar 1 in `GameDevPlan.md` §3), not a specific number.
 
 ## 3. Socket conventions
@@ -37,7 +37,7 @@ root
 | Socket | Parent bone | Purpose |
 |---|---|---|
 | `Socket.WeaponHandR` | `hand_r` | Primary weapon (sword, staff) |
-| `Socket.WeaponHandL` | `hand_l` | Off-hand (shield) |
+| `Socket.WeaponHandL` | `hand_l` | Off-hand — shield for Knight, but generalizes to a second offensive weapon for dual-wield classes (Rogue's daggers, `Docs/Classes.md`/`Docs/Items.md`) — don't assume "shield" is the only use once post-beta classes get built. |
 | `Socket.WeaponBack` | `spine_03` | Sheathed/holstered weapon when not equipped |
 | `Socket.Camera` (reference only, not a spring-arm attach point) | `head` or `spine_03` | Reference for camera-boom target height during setup, not a hard attach |
 
@@ -57,11 +57,13 @@ Per `SystemsDesign.md` §2.3's four abilities plus core locomotion. This is the 
 - **Pounce** (hold-to-charge heavy, same ability/hotkey as Claw Flurry, not a separate one): a leaping sword-lunge — charge-loop section (crouch/coil wind-up, loops while held) + a release section (the leaping thrust), reusing `CombatEnemy`'s existing `ChargeLoopSection`/`ChargeAttackSection` montage-section pattern (P0 audit). The cat-specific part is the coiled crouch-wind-up, not the strike itself — weapon stays drawn throughout.
 - **Headbutt** (Shield Bash): a shield-bash — weapon and shield stay equipped and doing the work, the head just dips forward through the motion, layered on top of a normal shield-charge rather than replacing it. One montage, notify-tagged for the stagger-application frame.
 - **Zoomies** (Dash): pure mobility, no weapon interaction — weapon rides along sheathed or held. One montage, notify-tagged for the invulnerability window start/end (see `SystemsDesign.md` §2.3 — the i-frame window is driven by a notify, not a timer, so the notify placement is gameplay-load-bearing, not just cosmetic).
-- **Bunny Kick** (Whirlwind): the deliberate "instinct breaks through" exception above — weapon held loose or momentarily sheathed, claws out, an all-limbs flurry kicking in every direction, not a spinning weapon attack. One montage, AoE-radius should visually match whatever radius the ability's GameplayEffect actually uses — coordinate the number with whoever tunes the ability data asset.
+- **Bunny Kick** (Whirlwind): the deliberate "instinct breaks through" exception above — weapon held loose or momentarily sheathed, claws out, an all-limbs flurry kicking in every direction, not a spinning weapon attack. One montage, AoE-radius **250uu** (confirmed in code, `UDCGameplayAbility_Whirlwind::Radius`, 2026-08-13 — this was previously listed as "coordinate the number," now synced).
 
 Retargeted humanoid locomotion (from Lyra/marketplace/Mixamo per the plan) can fill in anything not listed above (turn-in-place, strafing, etc.) — only the list above needs hand-authored, cat-specific animation for the vertical slice.
 
 ## 5. Dungeon trim-kit spec
+
+**⚑ Provisional — dungeon generation technique reopened 2026-08-13** (`SystemsDesign.md` §4, `Docs/P2_DungeonAI.md`). The grid/room-catalog content below assumes the previously-planned prefab-room graph-stitching approach, which is no longer a settled decision. Trim-sheet/material guidance (texture atlas, wall height as a general modeling convention) is likely still useful regardless of technique; the specific room catalog is not — don't build against it yet.
 
 Per `SystemsDesign.md` §4.1's 400uu grid:
 
