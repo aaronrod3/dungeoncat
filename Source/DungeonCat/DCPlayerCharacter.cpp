@@ -4,12 +4,18 @@
 #include "DCPlayerState.h"
 #include "GAS/DCAttributeSet.h"
 #include "GAS/DCAbilitySystemComponent.h"
-#include "GAS/DCGameplayAbility_TestDamage.h"
+#include "GAS/DCGameplayAbility_BasicAttack.h"
+#include "GAS/DCGameplayAbility_ShieldBash.h"
+#include "GAS/DCGameplayAbility_Dash.h"
+#include "GAS/DCGameplayAbility_Whirlwind.h"
 #include "AbilitySystemComponent.h"
 
 ADCPlayerCharacter::ADCPlayerCharacter()
 {
-	TestAbilityClass = UDCGameplayAbility_TestDamage::StaticClass();
+	BasicAttackAbilityClass = UDCGameplayAbility_BasicAttack::StaticClass();
+	ShieldBashAbilityClass = UDCGameplayAbility_ShieldBash::StaticClass();
+	DashAbilityClass = UDCGameplayAbility_Dash::StaticClass();
+	WhirlwindAbilityClass = UDCGameplayAbility_Whirlwind::StaticClass();
 }
 
 UAbilitySystemComponent* ADCPlayerCharacter::GetAbilitySystemComponent() const
@@ -46,7 +52,7 @@ void ADCPlayerCharacter::PossessedBy(AController* NewController)
 		if (UAbilitySystemComponent* ASC = DCPlayerState->GetAbilitySystemComponent())
 		{
 			ASC->InitAbilityActorInfo(DCPlayerState, this);
-			GrantTestAbility();
+			GrantKnightAbilities();
 		}
 	}
 }
@@ -68,23 +74,49 @@ void ADCPlayerCharacter::OnRep_PlayerState()
 	}
 }
 
-void ADCPlayerCharacter::GrantTestAbility()
+void ADCPlayerCharacter::GrantKnightAbilities()
 {
-	if (!HasAuthority() || !TestAbilityClass)
+	if (!HasAuthority())
 	{
 		return;
 	}
 
-	if (UAbilitySystemComponent* ASC = GetAbilitySystemComponent())
+	UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+	if (!ASC)
 	{
-		ASC->GiveAbility(FGameplayAbilitySpec(TestAbilityClass, 1, INDEX_NONE, this));
+		return;
+	}
+
+	if (BasicAttackAbilityClass)
+	{
+		ASC->GiveAbility(FGameplayAbilitySpec(BasicAttackAbilityClass, 1, static_cast<int32>(EDCAbilityInputID::BasicAttack), this));
+	}
+	if (ShieldBashAbilityClass)
+	{
+		ASC->GiveAbility(FGameplayAbilitySpec(ShieldBashAbilityClass, 1, static_cast<int32>(EDCAbilityInputID::ShieldBash), this));
+	}
+	if (DashAbilityClass)
+	{
+		ASC->GiveAbility(FGameplayAbilitySpec(DashAbilityClass, 1, static_cast<int32>(EDCAbilityInputID::Dash), this));
+	}
+	if (WhirlwindAbilityClass)
+	{
+		ASC->GiveAbility(FGameplayAbilitySpec(WhirlwindAbilityClass, 1, static_cast<int32>(EDCAbilityInputID::Whirlwind), this));
 	}
 }
 
-void ADCPlayerCharacter::DC_TestAbility_DealDamageToSelf()
+void ADCPlayerCharacter::AbilityInputPressed(EDCAbilityInputID InputID)
 {
 	if (UAbilitySystemComponent* ASC = GetAbilitySystemComponent())
 	{
-		ASC->TryActivateAbilityByClass(TestAbilityClass);
+		ASC->AbilityLocalInputPressed(static_cast<int32>(InputID));
+	}
+}
+
+void ADCPlayerCharacter::AbilityInputReleased(EDCAbilityInputID InputID)
+{
+	if (UAbilitySystemComponent* ASC = GetAbilitySystemComponent())
+	{
+		ASC->AbilityLocalInputReleased(static_cast<int32>(InputID));
 	}
 }
