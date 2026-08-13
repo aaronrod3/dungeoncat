@@ -14,7 +14,7 @@
 
 **Reopened, not resolved**: dungeon generation technique. The dev is reconsidering the previously-planned "prefab-room graph stitching" approach — flagged clearly in `SystemsDesign.md` §4, `GameDevPlan.md` §4.2, and `AssetPipeline.md` §5 rather than left silently "decided." This blocks P2's dungeon-generation-specific work (room catalog, generation algorithm) but not P2's AI/targeting-fix/loot-pickup work, which can proceed now.
 
-**Still explicitly the dev's own call**: final dungeon-generation technique; the full skill list (dev wants to co-design this further, `Docs/Classes.md` has a starting draft); Steam vs. Epic as the eventual storefront.
+**Still explicitly the dev's own call**: final dungeon-generation technique; the full skill list (dev wants to co-design this further, `Docs/Classes.md` has a starting draft). **Resolved 2026-08-14**: releasing on Steam (not Epic) — full plan in `SystemsDesign.md` §3.1.1. The dev's own next step there is registering a Steamworks Partner account (real account + $100 fee, not something Claude Code can or should do) — everything else waits on that App ID existing.
 
 **Unrelated to this pass, still true**: all 4 Knight abilities are compiled but not yet PIE-tested; Enhanced Input still isn't wired (now scoped to include gamepad, not just KBM).
 

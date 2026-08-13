@@ -49,7 +49,24 @@ Moved to `Docs/Classes.md` — Rogue/Wizard/Healer's identities, weapons, abilit
 ## 3. Co-op & replication
 
 ### 3.1 Session model
-Listen-server only for the beta (matches `GameDevPlan.md` §8 scope) — one player hosts, joined via **direct-IP** (resolved 2026-08-13: no Steam/OnlineSubsystem integration exists anywhere in this project or in `zombieshooter`, confirmed by checking both codebases directly — `zombieshooter`'s own production docs call Steam/EOS integration a still-open item there too and state "direct-IP only is much simpler and is what the project has assumed throughout." Nothing to reuse; direct-IP is the real near-term answer regardless of the dev's eventual storefront choice, Steam vs. Epic, which remains genuinely undecided and doesn't need to be to build this). No dedicated-server packaging, no host migration. If the host disconnects, the session ends and remaining players return to the Main Menu — acceptable for a 2-player, 8-12-minute run; document this as a known beta limitation, not a bug to chase. Non-host mid-run disconnect: despawn their pawn/clean up their ASC, remaining player(s) continue rather than the run auto-failing.
+Listen-server only for the beta (matches `GameDevPlan.md` §8 scope) — one player hosts, joined via **direct-IP** (resolved 2026-08-13: no Steam/OnlineSubsystem integration exists anywhere in this project or in `zombieshooter`, confirmed by checking both codebases directly — `zombieshooter`'s own production docs call Steam/EOS integration a still-open item there too and state "direct-IP only is much simpler and is what the project has assumed throughout." Nothing to reuse; direct-IP is still the right near-term build even now that the release platform is decided — see §3.1.1). No dedicated-server packaging, no host migration. If the host disconnects, the session ends and remaining players return to the Main Menu — acceptable for a 2-player, 8-12-minute run; document this as a known beta limitation, not a bug to chase. Non-host mid-run disconnect: despawn their pawn/clean up their ASC, remaining player(s) continue rather than the run auto-failing.
+
+### 3.1.1 Steam release plan (added 2026-08-14)
+
+**Decided**: releasing on Steam first (Epic Games Store no longer being weighed as an alternative). This doesn't change §3.1's direct-IP recommendation for the beta build — Steamworks integration is a distinct, separable layer on top of the same replicated-gameplay code, not a networking-transport prerequisite. What actually needs to happen, split by who does it:
+
+**The dev's own steps (real account/payment actions, not something to automate or delegate)**:
+1. Register a Steamworks Partner account and pay Valve's one-time $100 app fee.
+2. Get a Steam **App ID** issued (this is what everything below actually needs).
+3. Eventually: build the store page, capsule art, trailer, etc. — a marketing/business track, not an engineering one, and far downstream of the beta.
+
+**What gets built once an App ID exists (not yet — nothing to do here until step 2 above happens)**:
+- Enable the `OnlineSubsystemSteam` plugin in `DungeonCat.uproject` (currently commented-out boilerplate in `DungeonCat.Build.cs`, confirmed not enabled) and set the App ID in `DefaultEngine.ini`'s `[OnlineSubsystemSteam]` section.
+- A `steam_appid.txt` file (App ID only) at the project root for dev-machine testing without going through the real Steam client launch path.
+- Migrate the join flow from direct-IP to Steam Sessions/Steam invite (`SystemsDesign.md` §3.1's existing direct-IP code doesn't need to be thrown away — Steam Sessions can sit alongside it, or replace it, depending on how much direct-IP testing convenience is still wanted once Steam is live).
+- Later still (post-beta-adjacent, not urgent): Steam achievements, rich presence, cloud saves as an alternative/supplement to the local save system (§7).
+
+**Recommended timing**: register the Steamworks account and get the App ID early if there's no reason not to (it's a one-time step that unblocks everything else whenever it happens, and Valve's review/setup can take time) — but the actual `OnlineSubsystemSteam` code integration is naturally a P3-adjacent task (that's when the real session/join flow gets hardened anyway, per `Docs/P3_CoopHardening.md`), not something to front-load into P1/P2's grey-box work.
 
 ### 3.2 Server authority
 Every ability, health change, enemy action, and loot pickup is server-authoritative from the first line — this is decision §2.1's non-negotiable, not a retrofit target. Concretely: `Server_` RPC prefix convention for every mutator (matches `zombieshooter`'s convention exactly — carry it over), `HasAuthority()` guards on every state-changing function, `ReplicatedUsing=OnRep_X` + `OnRep_X` broadcasts a delegate for every replicated property UI/animation cares about. **Never poll replicated state directly** from Tick or Blueprint — this specific mistake is called out because it's the easiest one to make under time pressure and the hardest to debug once several systems depend on the polled value being fresh.
