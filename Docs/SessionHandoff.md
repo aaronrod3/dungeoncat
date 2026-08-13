@@ -6,23 +6,21 @@
 
 ## Status (2026-08-12)
 
-P0 (reuse audit) done. P1 (GAS foundation) code written **and now compiled clean** — `Build.bat DungeonCatEditor Win64 Development` succeeded on the first real attempt. One real bug caught in the process: `GameplayAbilities` needed enabling as a plugin in `DungeonCat.uproject`, not just as a `Build.cs` module dependency — fixed.
+**P1's core risk is retired.** GAS foundation code compiles clean and — dev-confirmed in a real 2-player listen-server PIE session — replicates correctly: the throwaway test ability's damage/Health change showed up correct on both clients via the `DC_TestAbility_DealDamageToSelf` console command. This was the single highest-risk unknown on the whole 2-month clock (`GameDevPlan.md` §9); it's now proven, not just written.
 
-What exists in code: `UDCAttributeSet` (Health/Stamina/Armor/MoveSpeed/CritChance/CritMultiplier + a `Damage` meta attribute), `UDCAbilitySystemComponent` on the new `ADCPlayerState`, `UDCDamageExecCalculation` (the single damage entry point), `UDCGameplayAbility` base class, `ADCPlayerCharacter` (extends the stock `ADungeonCatCharacter` for its camera boom, forwards `IAbilitySystemInterface` to PlayerState with the correct `PossessedBy`/`OnRep_PlayerState` init-timing fix), `ADCGameMode`, and a native `Config/Tags/DungeonCatGameplayTags.ini` tag list.
+What exists in code: `UDCAttributeSet`, `UDCAbilitySystemComponent` on `ADCPlayerState`, `UDCDamageExecCalculation` (single damage entry point), `UDCGameplayAbility` base class, `ADCPlayerCharacter`/`ADCGameMode`, a native `Config/Tags/DungeonCatGameplayTags.ini` tag list, and the throwaway `UDCGameplayAbility_TestDamage`/`UDCGameplayEffect_TestDamage` test pair (**delete both once the real 4 abilities exist** — they've served their purpose).
 
-A throwaway C++-only test ability (`UDCGameplayAbility_TestDamage` + `UDCGameplayEffect_TestDamage`) exists purely to prove replication without needing Blueprint/montage/Input-Action assets — triggered via console command (`DC_TestAbility_DealDamageToSelf`), not input binding. **Delete both once the real 4 Knight abilities exist.**
+Also in place: `Docs/CommandReference.md` and `Docs/AsyncSessionProtocol.md` (both adapted from `zombieshooter`).
 
-Also added this session: `Docs/CommandReference.md` and `Docs/AsyncSessionProtocol.md`, both adapted from `zombieshooter`'s equivalents for this project's actual paths/conventions (the away-session protocol's ZombieShooter-specific "Queue mode" — scheduled GitHub-Issues-driven parallel worktree automation — was deliberately dropped, not ported, since none of that infrastructure exists here).
-
-**Compiling clean is not the same as verified correct** — full checklist and the P1 design decisions (attack movement, ability-cancel rules, crit, replication-proof method) are in `ProductionPlan.md`'s P1 section.
+P0 (reuse audit) and the replication-proof half of P1 are done. Remaining P1 work (real abilities, Enhanced Input, grey-box arena) is normal build-out, no longer risk-gated.
 
 ## Next step
 
-**The replication test itself, not more code.** Editor is available now:
+Build the real 4 Knight abilities per `SystemsDesign.md` §2.3 and the P1 design decisions in `ProductionPlan.md` (attacks slow-not-root via a `State.Attacking` MoveSpeed modifier; Dash cancels Basic Attack specifically via `CancelAbilitiesWithTag`, Shield Bash/Whirlwind commit fully; crit plumbed at 0%):
 
-1. Set `ADCGameMode` as the default GameMode (Project Settings > Maps & Modes — plain C++ class, no Blueprint needed).
-2. PIE with Multiplayer Options, Players ≥ 2 (listen-server).
-3. Type `DC_TestAbility_DealDamageToSelf` in one client's console.
-4. Confirm the "took X damage" on-screen message and the resulting Health value are correct on **both** clients.
+1. **Basic Attack** — port the audited `AnimNotify_DoAttackTrace` sweep + combo montage-jump mechanism (P0 audit, `SystemsDesign.md` §10) into a real `GA_DC_Knight_BasicAttack`, but input-buffered (player-driven combo continuation, not `CombatEnemy`'s AI-random hit count).
+2. **Shield Bash**, **Dash**, **Whirlwind** — per their §2.3 specs.
+3. Enhanced Input (`IMC_DC_Default`) — the editor is open now, so the Input Action assets that were blocked all session can finally get created.
+4. Grey-box test arena to actually feel the combat out in.
 
-If replication is broken, that's the P1 gate doing its job — fix it before touching the real 4 abilities. If it works, move on to building Basic Attack/Shield Bash/Dash/Whirlwind for real (`SystemsDesign.md` §2.3), which is when Enhanced Input and the grey-box arena become necessary too.
+The editor is currently open.
