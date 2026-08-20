@@ -11,8 +11,9 @@ class ADCPlayerState;
 class UDCAttributeSet;
 class UAbilitySystemComponent;
 class UGameplayAbility;
+class UInputAction;
 
-/** Maps to each granted ability's FGameplayAbilitySpec::InputID (SystemsDesign.md §2.3's 4 Knight abilities). Enhanced Input (still not wired - IMC_DC_Default doesn't exist yet, see ProductionPlan.md P1) will eventually call AbilityInputPressed/Released with these; nothing else needs to change once it does. */
+/** Maps to each granted ability's FGameplayAbilitySpec::InputID (SystemsDesign.md §2.3's 4 Knight abilities). ADCPlayerCharacter::SetupPlayerInputComponent binds IMC_DC_Default's 4 ability Input Actions to AbilityInputPressed/Released with these. */
 UENUM(BlueprintType)
 enum class EDCAbilityInputID : uint8
 {
@@ -59,11 +60,8 @@ public:
 	UFUNCTION(BlueprintPure, Category = "DC|Ability")
 	UDCAttributeSet* GetDCAttributeSet() const;
 
-	/** Routes to AbilitySystemComponent::AbilityLocalInputPressed - call this from an Enhanced Input
-	 *  "Started"/"Triggered" binding once IMC_DC_Default exists (ProductionPlan.md P1). Until then,
-	 *  there's no other way to activate these abilities - they have no console-command fallback like
-	 *  the now-deleted week-1 test ability did, since testing the real 4 needs real input handling
-	 *  either way. */
+	/** Routes to AbilitySystemComponent::AbilityLocalInputPressed - bound to each ability Input
+	 *  Action's Started event in SetupPlayerInputComponent below. */
 	UFUNCTION(BlueprintCallable, Category = "DC|Ability")
 	void AbilityInputPressed(EDCAbilityInputID InputID);
 
@@ -72,6 +70,13 @@ public:
 	void AbilityInputReleased(EDCAbilityInputID InputID);
 
 protected:
+
+	/** Binds the 4 ability Input Actions on top of the inherited Move/Look/Jump/MouseLook bindings
+	 *  (ADungeonCatCharacter::SetupPlayerInputComponent) - each routes straight to
+	 *  AbilityInputPressed/Released via Enhanced Input's payload-binding overload, no wrapper
+	 *  functions needed. Started->Pressed, Completed/Canceled->Released; BasicAttack's tap-vs-hold
+	 *  split happens inside UDCGameplayAbility_BasicAttack itself (WaitInputRelease), not here. */
+	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
 	/** Grants the 4 real Knight abilities server-side once the ASC is valid - called from both
 	 *  PossessedBy and (harmlessly, idempotently) from OnRep_PlayerState's InitAbilityActorInfo call
@@ -89,4 +94,19 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "DC|Ability")
 	TSubclassOf<UGameplayAbility> WhirlwindAbilityClass;
+
+	/** Ability Input Actions, assigned on BP_DCPlayerCharacter (same convention as the inherited
+	 *  Move/Look/Jump/MouseLook actions on ADungeonCatCharacter - asset references live on a
+	 *  Blueprint child, not hardcoded in C++). Part of IMC_DC_Default. */
+	UPROPERTY(EditAnywhere, Category = "DC|Ability|Input")
+	TObjectPtr<UInputAction> BasicAttackAction;
+
+	UPROPERTY(EditAnywhere, Category = "DC|Ability|Input")
+	TObjectPtr<UInputAction> ShieldBashAction;
+
+	UPROPERTY(EditAnywhere, Category = "DC|Ability|Input")
+	TObjectPtr<UInputAction> DashAction;
+
+	UPROPERTY(EditAnywhere, Category = "DC|Ability|Input")
+	TObjectPtr<UInputAction> WhirlwindAction;
 };

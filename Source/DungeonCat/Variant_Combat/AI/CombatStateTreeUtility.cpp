@@ -9,7 +9,8 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "AIController.h"
 #include "CombatEnemy.h"
-#include "Kismet/GameplayStatics.h"
+#include "GameFramework/GameStateBase.h"
+#include "GameFramework/PlayerState.h"
 #include "StateTreeAsyncExecutionContext.h"
 
 bool FStateTreeCharacterGroundedCondition::TestCondition(FStateTreeExecutionContext& Context) const
@@ -260,13 +261,23 @@ EStateTreeRunStatus FStateTreeGetPlayerInfoTask::EnterState(FStateTreeExecutionC
 	// reset the selected target
 	ACharacter* SelectedTarget = nullptr;
 
-	// iterate through each local player
-	const int32 NumPlayers = UGameplayStatics::GetNumLocalPlayerControllers(InstanceData.Character);
+	// Iterate through every connected player, not just this process's own local players -
+	// GetNumLocalPlayerControllers/GetPlayerPawn only ever see the listen-server host's own player from
+	// AI code running server-side, silently ignoring every remote client (this loop looked multi-player-aware
+	// but wasn't - P2_DungeonAI.md Stage 1 finding). GameState's PlayerArray is replicated and covers
+	// every connected player, local or remote.
+	const AGameStateBase* GameState = InstanceData.Character ? InstanceData.Character->GetWorld()->GetGameState() : nullptr;
 
-	for (int32 i = 0; i < NumPlayers; ++i)
+	if (GameState)
 	{
-		if (ACharacter* Current = Cast<ACharacter>(UGameplayStatics::GetPlayerPawn(InstanceData.Character, i)))
+		for (APlayerState* PlayerState : GameState->PlayerArray)
 		{
+			ACharacter* Current = PlayerState ? Cast<ACharacter>(PlayerState->GetPawn()) : nullptr;
+			if (!Current)
+			{
+				continue;
+			}
+
 			// compute the distance to the target
 			const float TargetDist = (Current->GetActorLocation() - InstanceData.Character->GetActorLocation()).Size();
 

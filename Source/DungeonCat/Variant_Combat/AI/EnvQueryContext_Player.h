@@ -8,7 +8,9 @@
 
 /**
  *  UEnvQueryContext_Player
- *  Basic EnvQuery Context that returns the first local player
+ *  EnvQuery Context that returns every connected player's pawn (via GameState->PlayerArray, not just
+ *  the querying process's own local player - see the .cpp for why the naive local-player-index approach
+ *  breaks multiplayer, P2_DungeonAI.md Stage 1).
  */
 UCLASS()
 class UEnvQueryContext_Player : public UEnvQueryContext

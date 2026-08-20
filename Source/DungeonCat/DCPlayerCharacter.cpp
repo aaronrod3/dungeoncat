@@ -9,6 +9,7 @@
 #include "GAS/DCGameplayAbility_Dash.h"
 #include "GAS/DCGameplayAbility_Whirlwind.h"
 #include "AbilitySystemComponent.h"
+#include "EnhancedInputComponent.h"
 
 ADCPlayerCharacter::ADCPlayerCharacter()
 {
@@ -102,6 +103,30 @@ void ADCPlayerCharacter::GrantKnightAbilities()
 	if (WhirlwindAbilityClass)
 	{
 		ASC->GiveAbility(FGameplayAbilitySpec(WhirlwindAbilityClass, 1, static_cast<int32>(EDCAbilityInputID::Whirlwind), this));
+	}
+}
+
+void ADCPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
+{
+	Super::SetupPlayerInputComponent(PlayerInputComponent);
+
+	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent))
+	{
+		EnhancedInputComponent->BindAction(BasicAttackAction, ETriggerEvent::Started, this, &ADCPlayerCharacter::AbilityInputPressed, EDCAbilityInputID::BasicAttack);
+		EnhancedInputComponent->BindAction(BasicAttackAction, ETriggerEvent::Completed, this, &ADCPlayerCharacter::AbilityInputReleased, EDCAbilityInputID::BasicAttack);
+		EnhancedInputComponent->BindAction(BasicAttackAction, ETriggerEvent::Canceled, this, &ADCPlayerCharacter::AbilityInputReleased, EDCAbilityInputID::BasicAttack);
+
+		EnhancedInputComponent->BindAction(ShieldBashAction, ETriggerEvent::Started, this, &ADCPlayerCharacter::AbilityInputPressed, EDCAbilityInputID::ShieldBash);
+		EnhancedInputComponent->BindAction(ShieldBashAction, ETriggerEvent::Completed, this, &ADCPlayerCharacter::AbilityInputReleased, EDCAbilityInputID::ShieldBash);
+		EnhancedInputComponent->BindAction(ShieldBashAction, ETriggerEvent::Canceled, this, &ADCPlayerCharacter::AbilityInputReleased, EDCAbilityInputID::ShieldBash);
+
+		EnhancedInputComponent->BindAction(DashAction, ETriggerEvent::Started, this, &ADCPlayerCharacter::AbilityInputPressed, EDCAbilityInputID::Dash);
+		EnhancedInputComponent->BindAction(DashAction, ETriggerEvent::Completed, this, &ADCPlayerCharacter::AbilityInputReleased, EDCAbilityInputID::Dash);
+		EnhancedInputComponent->BindAction(DashAction, ETriggerEvent::Canceled, this, &ADCPlayerCharacter::AbilityInputReleased, EDCAbilityInputID::Dash);
+
+		EnhancedInputComponent->BindAction(WhirlwindAction, ETriggerEvent::Started, this, &ADCPlayerCharacter::AbilityInputPressed, EDCAbilityInputID::Whirlwind);
+		EnhancedInputComponent->BindAction(WhirlwindAction, ETriggerEvent::Completed, this, &ADCPlayerCharacter::AbilityInputReleased, EDCAbilityInputID::Whirlwind);
+		EnhancedInputComponent->BindAction(WhirlwindAction, ETriggerEvent::Canceled, this, &ADCPlayerCharacter::AbilityInputReleased, EDCAbilityInputID::Whirlwind);
 	}
 }
 
