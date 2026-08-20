@@ -57,3 +57,17 @@ Full detail: **`Docs/P4_LoopAndBoss.md`**. Summary: objective item + extraction 
 ## After the beta
 
 Per `GameDevPlan.md` §8's "After the beta" section (self-authored art pass, second class, 4-player hardening, remaining modes) — not detailed here yet since it depends on what P1-P4 actually reveal. Expand this doc with real phases (P5+) once the beta ships, rather than speculatively planning post-beta work now.
+
+### Real procedural dungeon generation
+
+Design preserved from `SystemsDesign.md` §4, which was reopened 2026-08-13 and resolved 2026-08-19 to a fixed hand-authored v1 layout for the beta (real generation is genuine implementation scope and produces nothing meaningful without a room-module art catalog that doesn't exist yet). Once both exist, this is the algorithm to build against, unchanged from the original design:
+
+1. Seed an `FRandomStream` from the run seed.
+2. Start at a fixed entry room. Random-walk a chain of 6-10 rooms, at each step picking an unvisited door-compatible module from the catalog.
+3. Tag rooms by position in the chain: first = Entry, last = Exit, one interior room (weighted toward the far half) = Objective/Boss, remainder = Combat, with a small chance of a Loot side-branch if the chain has slack.
+4. Reject-and-retry generation within a bounded attempt count (prevents infinite loops on a bad seed); fall back to the known-good hand-authored v1 layout if retries exhaust, rather than crashing.
+5. Rooms spawn as actors at door-aligned transforms computed by walking the chain (sub-levels/streaming is a later optimization, not needed at 6-10 rooms).
+6. Navigation rebuilds at runtime via a `NavMeshBoundsVolume` sized to the generated bounding box, moving to Nav Mesh Invokers only if profiling says the bounds-volume rebuild is too expensive.
+7. Same seed always producing the same dungeon needs an explicit repeatable-seed automation test in `Source/DungeonCat/Tests/`, not an assumption.
+
+**Trigger to start this phase**: once the room-module art catalog has enough real content beyond the v1 layout's rooms that generation would actually produce meaningful variety — not on a fixed calendar date.

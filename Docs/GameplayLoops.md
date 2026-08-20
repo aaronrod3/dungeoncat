@@ -15,7 +15,9 @@ A persistent, shared, hand-authored 3D space players spawn into and return to be
 - **Loadout station** — an interactable (`UDCInteractableComponent`) that opens the Loadout UI screen. Beta: fixed Knight, no real choice yet, but the screen is built so post-beta class selection slots in without a rebuild.
 - **Vendor** — one for the beta, selling the beta's small consumable/trinket list (`Docs/Items.md`). Additional vendor types are a post-beta expansion.
 - **Training dummies** — reuse `CombatDummy` (`Source/DungeonCat/Variant_Combat/Gameplay/CombatDummy.h`, already exists in the stock scaffold, confirmed reusable in the P0 audit) directly. Lets players test Claw Flurry/Pounce/Headbutt/Zoomies/Bunny Kick risk-free before a run.
-- **Portal / run-start point** — interacting opens Host/Join (direct-IP text field, `SystemsDesign.md` §3.1). Starting the run transitions the party from the shared Hub into the Dungeon level together.
+- **Portal / run-start point** — interacting opens Host/Join (direct-IP text field, `SystemsDesign.md` §3.1). Starting the run transitions the party from the shared Hub into the Dungeon level together. **Once post-beta modes exist** (below), hosting adds one step: pick a mode (Get-item-escape / Kill-boss / Rescue / Combo) before the Host/Join step — the beta itself only ever has one mode, so nothing changes for beta scope.
+- **Trophy Board** (post-beta, added 2026-08-19) — an interactable displaying every enemy/boss the party has discovered so far (`Docs/Bestiary.md`), a light collection hook tying into the Keen Senses skill (`Docs/Classes.md`).
+- **Cosmetics Mirror** (post-beta, added 2026-08-19) — an interactable for previewing/equipping unlocked fur colors, patterns, and accessories (`Docs/Items.md`'s cosmetics catalog).
 
 ---
 
@@ -37,10 +39,22 @@ A full-screen map (beta: no always-on minimap, keeps scope tight) showing only a
 
 ---
 
-## Post-beta modes (named only — `GameDevPlan.md` §6, not designed here)
+## Post-beta modes (added 2026-08-19 — first-draft designs, same status as everything else in this doc: not built, not final)
 
-- **Kill-boss**
-- **Rescue**
-- **Combo**
+All 3 still honor Boss-gates-objective above — the boss is never optional in any mode.
 
-Zero design content exists for these yet beyond their names and the boss-gates-objective structural rule above, which will apply to whichever of them has a final-objective structure. Design these when their turn comes, not speculatively now.
+### Kill-boss
+
+No item-carry stakes — the boss itself is the entire point, not a gate in front of something else. Loop: **Hub** → interact Portal, pick Kill-boss → **Dungeon** (combat rooms leading straight to the boss arena, no item objective to find) → boss fight → **Extract** → **Run-End**. Distinguishing hook: since `Docs/Bestiary.md` now has a full boss roster (Swarm-mother, the Serpent, the Broodmother, Stonehide), Kill-boss draws or lets the party pick *which* boss to hunt — gives the mode a real identity of its own rather than reading as "Get-item-escape with the item removed."
+
+### Rescue
+
+Find and free a captive NPC, then escort them to the exit alive. Loop: **Hub** → Portal → **Dungeon** (explore, fight through, find the captive) → free them (the "objective," an NPC instead of an item) → escort to the boss-gated exit, protecting them along the way → boss fight → **Extract with the NPC** → **Run-End**. New fail condition beyond the existing ones: the NPC dying mid-escort fails the run. **Needs new tech that doesn't exist anywhere yet** — an escort-AI behavior (follow the party, flee/cower under threat, no combat capability) and NPC survivability tracking — flagging this rather than hand-waving it, since it's a real new system, not a reuse of the existing archetype/StateTree patterns.
+
+### Combo
+
+Stacks 2+ of the other modes' objectives into one run (e.g. item-escape + rescue) before the boss gate, with higher enemy density and higher reward to match. Mostly a remix of the other 3 modes' already-designed pieces — no new systems needed, just more of what already exists in one run.
+
+### Map / fog-of-war (all modes)
+
+The fog-of-war system above is mode-agnostic already — carries over unchanged to all 3.

@@ -6,8 +6,8 @@ Detail doc for `ProductionPlan.md`'s P2 entry. Structure: Stage 1 (plan finaliza
 
 ## Stage 1 — Plan finalization / open questions
 
-- [ ] **BLOCKING: dungeon generation technique.** Reopened 2026-08-13 (`SystemsDesign.md` §4) — the dev is reconsidering the approach, previously "prefab-room graph stitching." **Do not start any dungeon-generation-specific work below until this is confirmed.** Everything else in this phase (multiplayer-targeting fix, AI archetypes, basic loot pickup) is unaffected and can proceed in parallel.
-- [x] Room module grid/socket convention — resolved as provisional pending the above (`AssetPipeline.md` §5).
+- [x] **Dungeon generation technique — resolved 2026-08-19.** Real procedural generation deferred post-beta; the beta ships one hand-authored layout instead, built from the same module-grid convention (`SystemsDesign.md` §4). No longer blocking — every item below can proceed.
+- [x] Room module grid/socket convention — no longer provisional; confirmed in active use for the hand-authored v1 layout too (`AssetPipeline.md` §5).
 - [x] AI archetype StateTree/EQS specs + tuning numbers — resolved, `SystemsDesign.md` §5.1.
 - [x] Difficulty curve — resolved, `SystemsDesign.md` §5.1.
 - [x] Multiplayer-targeting bug scope — confirmed both code sites during the 2026-08-13 design pass: `EnvQueryContext_Player.cpp:13` (`GetPlayerPawn(Owner, 0)`) and `CombatStateTreeUtility.cpp` (`FStateTreeGetPlayerInfoTask`, which may already partially loop by index in one place — worth double-checking its actual selection logic, not just the EQS context, when this gets fixed).
@@ -18,16 +18,16 @@ Detail doc for `ProductionPlan.md`'s P2 entry. Structure: Stage 1 (plan finaliza
 
 Everything here needs the dungeon-gen technique confirmed first, **except** the targeting fix and loot pickup, which can start immediately:
 
-- [ ] Fix multiplayer targeting — rewrite `EnvQueryContext_Player` and `CombatStateTreeUtility`'s player-selection logic to consider all of `GameState->PlayerArray`, not index 0. **Not blocked by the dungeon-gen decision — start this first.**
+- [x] Fix multiplayer targeting — **done 2026-08-13, not yet PIE-tested.** Both sites (`EnvQueryContext_Player::ProvideContext`, `FStateTreeGetPlayerInfoTask::EnterState`) now enumerate `GameState->PlayerArray` (via `APlayerState::GetPawn()`) instead of `UGameplayStatics::GetPlayerPawn`/`GetNumLocalPlayerControllers` — those are local-player-indexed APIs meant for split-screen, and from AI code running server-side they only ever resolved to the listen-server host's own pawn, silently ignoring every remote client. `CombatStateTreeUtility`'s loop looked multiplayer-aware (it does iterate) but wasn't, for the same reason - confirmed the Stage 1 suspicion. Compiles clean (`Build.bat DungeonCatEditor`). Needs the Stage 3 2-player PIE check below before this is considered verified.
 - [ ] Two enemy archetypes (melee chaser + ranged spitter) as StateTree AI, per `SystemsDesign.md` §5.1's specs and tuning numbers, each a `DA_DC_EnemyConfig_*` instance off one shared `ADCEnemyCharacter` base. **Not blocked — the AI spec doesn't depend on room layout.**
 - [ ] Basic loot pickup (`Docs/Items.md`'s beta item list, no rarity/affix system yet — pick up, apply/add to carried-list). **Not blocked.**
-- [ ] *(Once Stage 1's blocker clears)* Room module grid/socket convention, generation algorithm, `ADCDungeonGenerator`, runtime NavMesh rebuild.
+- [ ] Build the one hand-authored dungeon layout in-editor per `SystemsDesign.md` §4.2 — Entry → 6-10 rooms → Objective/Boss room → Exit, one optional Loot side-branch, all door-socket-snapped to the 400uu grid modules (`AssetPipeline.md` §5). Bake nav normally; no `ADCDungeonGenerator`, no runtime rebuild.
 
 ## Stage 3 — Testing & manual steps (needs the dev's hands)
 
 - [ ] Confirm the multiplayer-targeting fix in PIE with 2 players standing apart — an enemy shouldn't always default to player 0. (Minimal check; the full audit is P3's job.)
 - [ ] Both enemy archetypes chase/attack correctly in PIE against a solo player.
-- [ ] *(Once dungeon generation exists)* Same seed produces the same layout twice in a row — verify explicitly. A generated dungeon is fully nav-mesh-covered (no enemy stuck failing to path).
-- [ ] Write/run the repeatable-seed automation test in `Source/DungeonCat/Tests/` — supervised session only, per Stage 1's governance note.
+- [ ] The hand-authored layout is fully nav-mesh-covered (no enemy stuck failing to path).
+- [ ] Same seed produces the same encounter/loot rolls twice in a row within the fixed layout — this replaces the old "same seed → same generated layout" check, since the layout itself is no longer generated. Write/run the repeatable-seed automation test in `Source/DungeonCat/Tests/` — supervised session only, per Stage 1's governance note.
 
-**Exit criteria**: 2-player targeting smoke check passes; both archetypes function correctly solo; *(once unblocked)* seed-repeatability and nav-mesh coverage verified.
+**Exit criteria**: 2-player targeting smoke check passes; both archetypes function correctly solo; the hand-authored layout is nav-mesh-covered; encounter/loot seed-repeatability verified.

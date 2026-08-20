@@ -85,17 +85,9 @@ Commit to GAS early. It is the correct foundation for 4 classes and 8 eventual s
 
 There's a learning curve. Budget time in preproduction to get comfortable; it pays back across every class.
 
-### 4.2 Procedural dungeon generation
+### 4.2 Dungeon layout: fixed v1, procedural deferred
 
-**⚑ REOPENED 2026-08-13** — the dev is reconsidering the generation technique/approach. The "prefab-room graph stitching" content below is **not currently a settled decision**, despite reading as one — kept here for reference, not as instruction, until the dev confirms a direction. See `SystemsDesign.md` §4 and `Docs/P2_DungeonAI.md` for the live status.
-
-Go **prefab-room graph stitching**, not full geometry synthesis (skip wave-function-collapse for v1).
-
-- Build a library of hand-authored room modules from a shared modular kit.
-- A generator picks rooms by seed, connects them via door sockets, and tags rooms as combat / loot / boss / exit.
-- Populate encounters and loot by seed so runs are reproducible for debugging and shareable later.
-- Rebuild navigation at runtime (Dynamic Nav Mesh / Nav Mesh Invokers) so enemy AI works in generated layouts.
-- Seed everything: same seed = same dungeon. Invaluable for testing.
+**RESOLVED 2026-08-19** — closes the 2026-08-13 reopening. Real procedural generation (still **prefab-room graph stitching**, not full geometry synthesis — that technique call itself was never actually in question, only its timing) is deferred past the beta: it's genuine implementation scope and produces nothing meaningful without a room-module art catalog that doesn't exist yet. **The beta ships one hand-authored dungeon layout instead**, built from the same 400uu-grid/door-socket module convention the generator will eventually use, so none of this planning is wasted once generation actually gets built. Per-run variety still comes from seeded encounter/loot rolling, just not from the room layout itself. Full spec: `SystemsDesign.md` §4. Full generator algorithm, preserved for when this phase starts: `ProductionPlan.md`'s After-the-beta section.
 
 ### 4.3 Modular character & customization
 - **One master cat skeleton.** All customization, gear, and animation retarget to it. This is non-negotiable for keeping animation sane.
@@ -166,7 +158,7 @@ Every game mode — not just Get-item-escape — has a final boss mandatorily gu
 One playable, fun run that proves the concept:
 
 - One class (suggest **Knight**, simplest combat to feel good), one spec.
-- Procedural dungeon: 6 to 10 stitched rooms, one exit, seed-driven.
+- Dungeon: one hand-authored 6 to 10 room layout, one exit (procedural generation deferred post-beta, `SystemsDesign.md` §4).
 - Two enemy archetypes (melee chaser + one ranged), plus the boss stub.
 - Core loop: enter -> fight through -> grab the objective item -> reach the exit before the dungeon overwhelms you.
 - Basic loot pickup, health/resource, death and run-end screens.
@@ -184,7 +176,7 @@ Assumptions: solo, heavy Claude Code assistance on systems code, your UE5 experi
 
 - 1 class (Knight), 1 spec, ~4 core abilities via GAS
 - 2-player co-op (listen-server), server-authoritative from the start
-- Procedural dungeon: 6 to 10 stitched grey-box rooms, seed-driven, runtime nav rebuild
+- Dungeon: one hand-authored 6 to 10 room grey-box layout, baked nav (procedural generation deferred post-beta)
 - 2 enemy archetypes (melee chaser + ranged) plus a boss stub
 - Get-item-escape mode end to end: enter, fight, grab objective, reach the exit alive
 - Grey-box or marketplace art, basic loot, health/resource, run-end screens
@@ -194,7 +186,7 @@ Assumptions: solo, heavy Claude Code assistance on systems code, your UE5 experi
 **8-week shape (heavily assisted, aggressive):**
 
 - Weeks 1 to 2: UE5 project + GAS sandbox; Knight's core abilities working; Enhanced Input; grey-box arena. Get one ability replicating across two clients now so networking pain shows up in week 1, not week 6.
-- Weeks 3 to 4: procedural room-graph generation v1 with runtime nav; two enemy archetypes on Behavior Trees; loot pickup.
+- Weeks 3 to 4: hand-authored v1 dungeon layout with baked nav; two enemy archetypes on StateTree; loot pickup.
 - Weeks 5 to 6: co-op replication pass. Make abilities, enemies, and loot server-authoritative and correct for two players. Budget the most debugging time here; networking is where aggressive timelines slip.
 - Weeks 7 to 8: Get-item-escape objective + exit, boss stub, run-end flow, balance and bug pass. Playable co-op slice.
 
@@ -220,7 +212,7 @@ A realistic note: you have two other games in flight and an active job hunt. The
 | Co-op debugging overruns weeks 5 to 6 | High | Build server-authoritative from line 1; fallback to solo-playable beta |
 | Self-authored art becomes the bottleneck | High | Defer it past beta; grey-box / marketplace art for the slice |
 | Scope creep back to "all 8 specs + 4 modes" | High | Hold the 1-class beta line; expansion is post-beta only |
-| Procedural gen produces boring layouts | Medium | Room-graph rules + tuning, hand-authored room quality |
+| Procedural gen produces boring layouts | Low (deferred) | Deferred past beta (`SystemsDesign.md` §4) — the beta's fixed v1 layout is hand-tuned directly, so this risk doesn't apply until real generation is actually built |
 | Competing projects starve this one | Medium | Decide its priority tier explicitly |
 
 ---

@@ -61,6 +61,39 @@ Per `SystemsDesign.md` §2.3's four abilities plus core locomotion. This is the 
 
 Retargeted humanoid locomotion (from Lyra/marketplace/Mixamo per the plan) can fill in anything not listed above (turn-in-place, strafing, etc.) — only the list above needs hand-authored, cat-specific animation for the vertical slice.
 
+### Weapon-attack vs. ability-attack animation split (added 2026-08-19)
+
+Clarifies scope for the Rogue/Wizard/Healer lists below and going forward: **basic/weapon attacks are authored per weapon type, not per class.** A dual-dagger swing belongs to "dual daggers" as an asset, reusable by any class that ever wields dual daggers — it isn't hand-tied to Rogue specifically, even though Rogue is currently the only class that uses them. Each class is locked to exactly one weapon type (`Docs/Items.md`'s weapon table — no class ever swaps weapon types), so in practice each weapon-type animation set maps to one class today, but scoping the *asset* by weapon rather than by class keeps it inherently shareable if that ever changes. The other 3 ability slots per class (plus Slot 1's charged-heavy half, e.g. Pounce) are always bespoke, hand-authored per specific ability, never shared across classes.
+
+Naming reflects the split: weapon-attack montages are `AM_DC_<WeaponType>_BasicAttack` (`AM_DC_SwordShield_BasicAttack`, `AM_DC_DualDagger_BasicAttack`, `AM_DC_Staff_BasicAttack`, `AM_DC_ClawGauntlet_BasicAttack`); ability montages stay `AM_DC_<Class>_<Ability>` (`AM_DC_Knight_Headbutt`, `AM_DC_Rogue_Ambush`, etc.) per §6's convention. Knight's existing animation list above predates this split (authored under the old per-class-only convention) — rename its basic-attack montage to `AM_DC_SwordShield_BasicAttack` when animation work actually starts; nothing else about Knight's list changes.
+
+### Rogue animation list (dual daggers)
+
+Locomotion, death, hit reacts, and downed/revive reuse the same shared base set as Knight (no re-authoring) — only the ability-specific list below is new:
+
+- **Quickclaw** (basic/weapon attack, tap combo) — `AM_DC_DualDagger_BasicAttack`: a 2-hit dagger flurry (Slash1 → Slash2 sections), 0.8s re-tap window — tighter than Claw Flurry's 1.2s, reinforcing "faster, lighter."
+- **Slink** (ability) — `AM_DC_Rogue_Slink`: a stance-shift into a low prowling loop while active, cleanly interruptible back to normal stance on attack or duration end.
+- **Ambush** (ability) — `AM_DC_Rogue_Ambush`: a lunging dagger thrust. One montage is enough for the beta; a distinct rear-strike flourish (vs. a Slink-triggered pounce-lunge) is a natural later polish split, not required now.
+- **Hiss** (ability) — `AM_DC_Rogue_Hiss`: a quick defensive dual-dagger flourish — a wide slashing flinch-burst that reads as pure technique. Rogue doesn't get a Bunny-Kick-style "instinct breaks through" exception; the daggers stay the identity throughout, fully weapon-consistent.
+
+### Wizard animation list (staff/orb)
+
+Locomotion, death, hit reacts, and downed/revive reuse the shared base set — only the ability-specific list below is new:
+
+- **Jinx** (basic/weapon attack) — `AM_DC_Staff_BasicAttack`: a quick staff-point/orb-thrust cast gesture, fast enough to match its ~0.5s innate swing timer.
+- **Evil Eye** (ability) — `AM_DC_Wizard_EvilEye`: a more deliberate two-handed staff-plant/orb-raise gesture with a visible telegraph, matching its control-ability read.
+- **Hairball** (ability) — `AM_DC_Wizard_Hairball`: the deliberate joke exception (mirrors Bunny Kick's role for Knight, per `Docs/Classes.md`'s "the one joke ability" framing) — an exaggerated coughing/hacking wind-up into a lob-throw release.
+- **Nine Lives** (ability) — `AM_DC_Wizard_NineLives`: a brief self-focused channel pose, staff/orb raised protectively — reads as "warded" instantly, no long wind-up.
+
+### Healer animation list (claw-gauntlets or light mace)
+
+Locomotion, death, hit reacts, and downed/revive reuse the shared base set — only the ability-specific list below is new:
+
+- **Swat** (basic/weapon attack) — `AM_DC_ClawGauntlet_BasicAttack`: a quick, low-committal paw-swat/gauntlet-jab — deliberately the lightest-reading swing in the roster, matching `Docs/Classes.md`'s "deliberately the lightest basic" note.
+- **Purr** (ability) — `AM_DC_Healer_Purr`: a self-centered settle-and-pulse pose, a brief purring-idle beat with a radiating pulse cue.
+- **Groom** (ability) — `AM_DC_Healer_Groom`: a grooming/licking-paw gesture directed at the target ally (or self). Deliberately leans into literal cat behavior rather than weapon-consistent styling — Healer's identity ("purr and groom support") calls for this more than Knight's weapon-fighter identity does, unlike Rogue/Wizard above.
+- **Biscuits** (ability) — `AM_DC_Healer_Biscuits`: a kneading-paw rally stomp — literal to the ability's real-world cat-behavior name, same reasoning as Groom.
+
 ## 5. Dungeon trim-kit spec
 
 **⚑ Provisional — dungeon generation technique reopened 2026-08-13** (`SystemsDesign.md` §4, `Docs/P2_DungeonAI.md`). The grid/room-catalog content below assumes the previously-planned prefab-room graph-stitching approach, which is no longer a settled decision. Trim-sheet/material guidance (texture atlas, wall height as a general modeling convention) is likely still useful regardless of technique; the specific room catalog is not — don't build against it yet.
@@ -84,10 +117,13 @@ Matches `SystemsDesign.md` §1's `DC` prefix:
 | Texture | `T_DC_<Name>_<Channel>` | `T_DC_TrimSheet_Dungeon01_BC` |
 | Material / instance | `M_DC_<Name>` / `MI_DC_<Name>` | `M_DC_TrimSheet` / `MI_DC_TrimSheet_Damp` |
 | Animation sequence | `A_DC_<Subject>_<Action>` | `A_DC_Cat_Idle` |
-| Anim montage | `AM_DC_<Subject>_<Action>` | `AM_DC_Knight_BasicAttack` |
+| Anim montage — ability | `AM_DC_<Class>_<Ability>` | `AM_DC_Knight_Headbutt` |
+| Anim montage — basic/weapon attack | `AM_DC_<WeaponType>_BasicAttack` | `AM_DC_SwordShield_BasicAttack` |
 | Data asset | `DA_DC_<Category>_<Name>` | `DA_DC_EnemyConfig_MeleeChaser` |
 | Blueprint | `BP_DC_<Name>` | `BP_DC_Container_Chest` |
 | Widget blueprint | `WBP_DC_<Name>` | `WBP_DC_HUD_Main` |
+
+Anim montages split into two rows above per §4's "Weapon-attack vs. ability-attack animation split" — basic attacks are scoped/named by weapon type (shareable across any class using that weapon), specific abilities stay scoped/named by class.
 
 ## 7. Off-limits / gotchas (fill in as they're hit)
 

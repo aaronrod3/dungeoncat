@@ -26,6 +26,8 @@ One `UDCAttributeSet` for the beta (single class). Fields:
 | `MoveSpeed` | Feeds `CharacterMovementComponent::MaxWalkSpeed` via a GameplayEffect-driven multiplier, never set directly on the movement component. |
 | `CritChance` / `CritMultiplier` | Present from the start even if the beta's single class doesn't tune them much — avoids a schema change when class 2 wants crit-focused kits. |
 
+**Resource model across future classes** (2026-08-16 design pass): `Stamina`/`MaxStamina` stays the one shared resource attribute for every class, not a per-class fork (no separate `Mana` for Wizard, `Energy` for Rogue, etc.) — same regen/drain curve, same replication, same future itemization hooks (a "+Max Stamina" trinket works for every class without a schema branch). Each class reflavors it cosmetically only (UI display name/color — e.g. Wizard shows "Focus") once class-specific UI exists, not as a new attribute. Flagged clearly since it's a real fork: the alternative (true per-class resource attributes) reads more authentically ARPG but forks the AttributeSet, the regen/drain logic, and every future itemization trinket per class for what's otherwise a cosmetic difference — revisit if that ends up mattering more than expected once a second class is actually in players' hands. Full per-class ability specs (including which ability costs this resource for each class): `Docs/Classes.md`.
+
 ### 2.2 ASC placement: PlayerState, not Character
 Attach `UDCAbilitySystemComponent` + `UDCAttributeSet` to `ADCPlayerState`, not `ADCPlayerCharacter`. Reasoning: the character is expected to be destroyed/respawned on death (§7 below), and a PlayerState-hosted ASC survives that, avoiding an ASC re-init + ability re-grant dance on every respawn. Standard pattern for GAS games without pawn-possession-swapping mid-match. `ADCPlayerCharacter` still implements `IAbilitySystemInterface::GetAbilitySystemComponent()` by forwarding to its `PlayerState`.
 
@@ -74,27 +76,23 @@ Every ability, health change, enemy action, and loot pickup is server-authoritat
 ### 3.3 Replication risk window
 Per `GameDevPlan.md` §8/§9, weeks 5-6 are the highest-risk window on the whole 2-month clock. Concretely de-risk it by proving one ability replicates correctly across 2 PIE clients in **week 1**, not after the rest of combat is built — see `ProductionPlan.md` P1's exit criteria.
 
-## 4. Procedural dungeon generation
+## 4. Dungeon layout (fixed v1, procedural deferred)
 
-**⚑ REOPENED 2026-08-13** — the dev is reconsidering the dungeon-generation technique/approach; the "prefab-room graph stitching" decision below (and `GameDevPlan.md` §4.2's matching DECISION) is **not currently settled**, despite the confident language throughout this section. Do not start P2 dungeon-generation implementation work (room catalog, door-socket convention, the generation algorithm) against this section until the dev confirms a technique. Everything else in this doc (AI, itemization, saves, UI, etc.) is unaffected and can proceed. See `Docs/P2_DungeonAI.md` for the live status of this blocker.
+**RESOLVED 2026-08-19** — closes the 2026-08-13 reopening. Real procedural generation is genuine implementation scope (~weeks 3-4 per `GameDevPlan.md` §8) and produces nothing meaningful without a room-module art catalog that doesn't exist yet. So **v1 ships as one hand-authored dungeon layout**, not procedural generation — this fully unblocks P2 today. The module-grid/door-socket convention below is unchanged and still enforced even though nothing is procedurally stitched yet, specifically so upgrading to real generation later is cheap (swap "one hand-placed layout" for "many interchangeable modules + an algorithm," not a re-architecture). The seed-driven graph-stitching design that used to live in this section is preserved, not deleted — see `ProductionPlan.md`'s new "Real procedural dungeon generation" entry under After the beta.
 
 ### 4.1 Room module grid
 - Base grid unit: **400 uu** (matches common UE modular-kit convention, and is a clean multiple of the Mannequin-derived cat's capsule radius).
-- Room modules are rectangular, sized in whole grid multiples — e.g. a standard combat room is 10x10 tiles (4000x4000uu), a corridor segment is 2x4 tiles. Exact catalog of room sizes is an art-pipeline decision (`AssetPipeline.md` §3), not a code decision — the generator just needs modules tagged with their footprint.
-- Door sockets sit at fixed grid-aligned positions on a room's N/S/E/W edges (one door per edge minimum, corridor pieces are 2-door pass-throughs). A door socket is a `USceneComponent` tagged `Socket.Door` at a consistent local-space offset so any two modules' doors can snap together regardless of which modules they are.
+- Room modules are rectangular, sized in whole grid multiples — e.g. a standard combat room is 10x10 tiles (4000x4000uu), a corridor segment is 2x4 tiles. Exact catalog of room sizes is an art-pipeline decision (`AssetPipeline.md` §3), not a code decision.
+- Door sockets sit at fixed grid-aligned positions on a room's N/S/E/W edges (one door per edge minimum, corridor pieces are 2-door pass-throughs). A door socket is a `USceneComponent` tagged `Socket.Door` at a consistent local-space offset so any two modules' doors can snap together regardless of which modules they are — enforced now even for hand-placement, so the modules themselves are already generator-ready.
 
-### 4.2 Generation algorithm
-Seed-driven graph stitching (not wave-function-collapse — explicitly out of scope per `GameDevPlan.md` §4.2):
+### 4.2 v1 layout: one hand-authored dungeon
+- Built in-editor from the same 400uu-grid modules, snapped door-to-door exactly the way the eventual generator would place them — just placed by hand instead of algorithmically.
+- Structure: Entry room → 6-10 rooms total (unchanged target from `GameDevPlan.md` §7) → an Objective/Boss room (mandatory gate, `GameplayLoops.md`'s boss-gates-objective rule) → Exit, plus one optional Loot side-branch dead-end — same shape the original chain design intended, just fixed instead of walked.
+- **Per-run variance stays in encounter/loot rolling, not layout.** Room shapes/positions are fixed, but enemy composition per combat room (§5.1's difficulty curve) and loot rolls (`Items.md`'s drop tables) are still rolled server-side per run from a seed — that logic doesn't depend on the layout being generated, so there's no reason to make it static too. A run through the fixed layout still plays differently each time even though the rooms don't move. This also means the seed-repeatability test P2 wanted still has a real target: same seed → same encounter/loot rolls (not same layout, which is fixed by construction).
+- Nav mesh: baked normally in-editor (standard `NavMeshBoundsVolume`, no runtime rebuild) — removes an entire category of P2 risk, since runtime nav rebuild was one of the trickier parts of the original generator plan.
 
-1. Seed an `FRandomStream` from the run seed.
-2. Start at a fixed entry room. Random-walk a chain of 6-10 rooms (per `GameDevPlan.md` §7's MVP target), at each step picking an unvisited door-compatible module from the catalog.
-3. Tag rooms by position in the chain: first = Entry, last = Exit, one interior room (weighted toward the far half of the chain) = Objective/Boss, remainder = Combat, with a small chance of a Loot side-branch (a 1-room dead-end off the main chain) if the chain has slack.
-4. Reject-and-retry generation if the chain can't place within a bounded number of attempts (prevents infinite loops on a bad seed) — log the failed seed for debugging, fall back to a known-good hand-authored layout if retries exhaust, rather than crashing or spawning a broken dungeon.
-
-### 4.3 Runtime instantiation & nav
-- Rooms are spawned as actors (not sub-levels, for the beta — level streaming is a post-beta optimization, not needed at 6-10 rooms) at door-aligned transforms computed by walking the chain.
-- Navigation rebuilds at runtime via a `NavMeshBoundsVolume` sized to the generated dungeon's bounding box, or Nav Mesh Invokers per player if the bounding-volume approach proves too expensive to rebuild — start with the simpler bounds-volume approach and only move to invokers if profiling says so.
-- Same seed always produces the same dungeon — this is load-bearing for debugging and must be verified (not assumed) once the generator exists: a repeatable-seed automation test belongs in `Source/DungeonCat/Tests/` per `ProductionPlan.md` P2.
+### 4.3 Post-beta: real procedural generation
+Moved to `ProductionPlan.md`'s After-the-beta section — the full seed-driven graph-stitching design (random-walk chain, reject-and-retry, runtime instantiation/nav rebuild) is preserved there rather than deleted. Trigger to revisit: once the room-module art catalog has enough real content beyond v1's single layout that generation would actually produce meaningful variety.
 
 ## 5. Enemy AI
 
@@ -105,7 +103,10 @@ Architecture decided in `GameDevPlan.md` §4.5 (StateTree default, BT embedded e
 | Melee chaser | Idle → detect (AIPerception sight/hearing) → close-distance rush → attack when in range → recover | Closest-valid-approach-point query, mirrors `zombieshooter`'s `AZombieAIController` perception wiring |
 | Ranged spitter | Idle → detect → maintain preferred range (retreat if too close, approach if too far) → attack | Ring query at preferred range, line-of-sight filtered |
 | Swarm/leaper | Idle → detect → flank/surround (multiple enemies bias toward different approach angles) → leap-attack | Multi-point query scored for spacing from other swarm members, not just from the player |
+| Brute/Tank (new, added 2026-08-19) | Idle → detect → relentless slow approach (no retreat/reposition band, unlike the ranged spitter) → long-telegraph heavy attack → long exploitable recovery → loop | None — direct move-to-target, no positioning query needed. Cheaper to implement than the other 3 archetypes, which all need real EQS-driven positioning. |
 | Boss | Idle → aggro → phase 1..N (telegraph → attack → recover, repeat, phase transition on health thresholds) → dead | Per-attack-pattern positioning queries, defined per phase |
+
+Creature identities/theming for all 4 archetypes and the full boss roster: `Docs/Bestiary.md`.
 
 All four share one base `ADCEnemyCharacter` + one base StateTree schema (extends the existing `CombatStateTreeUtility` conditions), parameterized per archetype rather than forked — per the multi-config rule below.
 
@@ -118,6 +119,7 @@ All four share one base `ADCEnemyCharacter` + one base StateTree schema (extends
 | Melee chaser | Idle→Investigate (AIPerception sight/hearing)→Chase (until within AttackRange)→Attack (reused P0 sweep)→brief recover→loop | Closest-valid-approach-point, 150-250uu radius, nav-reachable + LOS filtered |
 | Ranged spitter | Idle→Investigate→Chase (until within a preferred-range band)→Attack; Retreat state if player <400uu, Approach state if >900uu | Ring query, 750uu radius, 12-16 candidates, LOS filtered, scored to avoid stacking with other enemies |
 | Swarm/leaper | Idle→Investigate→Flank (biased approach angle per member)→Leap-Attack (300-500uu trigger range)→recover | Multi-point, 6-8 candidates, scored for ≥150uu spacing from other swarm members + distinct angle bucket |
+| Brute/Tank (new, added 2026-08-19) | Idle→Investigate→Chase (relentless, no retreat/approach bands)→Attack (~1-1.2s telegraph, long wind-up)→long recover (exploitable)→loop | None — direct move-to-target |
 
 **Tuning numbers**, anchored to the player's actual 100 HP / 100 Stamina (`UDCAttributeSet` defaults) — the stock `ACombatEnemy` template's numbers (1.0 dmg etc.) are toy values sized to a trivial dummy pool and are explicitly not portable:
 
@@ -126,8 +128,9 @@ All four share one base `ADCEnemyCharacter` + one base StateTree schema (extends
 | Melee chaser | 30 | 8-10 | ~3 Claw Flurry swipes to kill |
 | Ranged spitter | 20 | 6-8 | glassier, punishes melee engagement |
 | Swarm/leaper | 12-15 each | 5-6 each | weak alone, dangerous in numbers of 3-5 |
+| Brute/Tank (new, added 2026-08-19) | 70 | 18-22 | ~5-6 Claw Flurry swipes to kill; the long telegraph is what makes this fair rather than a DPS check |
 
-**Difficulty curve** (density/mix progression across a run, deliberately room-graph-independent since the dungeon-generation technique is reopened, §4): early encounters are 2-3 melee chasers only; mid encounters add a ranged spitter to the mix; late encounters go 3-4 mixed including swarm; the encounter immediately before the boss-gated objective is the largest "spike" (4-5 mixed) before committing to the boss. ~15-25 enemies total per run, sized to the 8-12 min pillar at roughly 20-40s per encounter.
+**Difficulty curve** (density/mix progression across a run, deliberately layout-independent per §4's fixed v1 approach): early encounters are 2-3 melee chasers only; mid encounters add a ranged spitter to the mix; late encounters go 3-4 mixed including swarm, with a Brute/Tank as an occasional late-run "big threat" spike rather than a regular; the encounter immediately before the boss-gated objective is the largest "spike" (4-5 mixed) before committing to the boss. ~15-25 enemies total per run, sized to the 8-12 min pillar at roughly 20-40s per encounter. Full creature identities: `Docs/Bestiary.md`.
 
 ## 6. Itemization & loot
 
@@ -136,8 +139,10 @@ Actual item/weapon/clothing/loot content now lives in `Docs/Items.md` — this s
 - `UDCItemConfig` DataAsset: display name, icon, rarity tier, equip slot (if any), granted `GameplayEffect`(s) for stat modifiers. Mirrors `zombieshooter`'s `UZSItemConfig` shape closely enough to port the pattern, not the content.
 - No equip/inventory UI for the beta — stat trinkets auto-apply their `GameplayEffect` on pickup, consumables are usable from a simple carried-list. Avoids scope creep into a full inventory screen the beta doesn't need.
 - Pickup via `UDCInteractableComponent` (P0-audit-confirmed portable) — interact-prompt, not walk-over auto-pickup, so "who grabs it" stays server-authoritative-simple in co-op.
-- Rarity tiers for the beta: Common / Uncommon / Rare / Epic (4 tiers is enough to feel ARPG-ish without needing a full affix system yet — procedural affixes are explicitly post-beta per `GameDevPlan.md` §4.6).
+- Rarity tiers for the beta: Common / Uncommon / Rare / Epic (4 tiers is enough to feel ARPG-ish without needing a full affix system yet for launch — the beta itself still ships with no affixes; the affix system below is post-beta content, designed now but not built until its own phase).
 - Drop tables: one `DA_DC_LootTable_*` per enemy archetype + one per room type (Combat/Loot/Boss), rolled server-side only.
+- **Boss loot tables (post-beta, added 2026-08-19)**: content/numbers live in `Docs/Items.md`; technical shape here. `DA_DC_LootTable_Boss_*` extends the regular loot-table asset with two tunable fields — `NumGuaranteedRolls` (defaults to current party size, read at kill time from `GameState->PlayerArray`, same multiplayer-aware pattern as the P2 targeting fix) and `BonusRollChance` (flat chance at +1 extra roll) — rather than hardcoding "roll once" like the regular tables.
+- **Affix system (post-beta, added 2026-08-19)**: content/pool lives in `Docs/Items.md`; technical shape here. An `FDCItemAffix` struct (`FGameplayTag AffixType` + `float RolledValue`) applied as a `GameplayEffect` modifier — same mechanism `UDCItemConfig` already uses for stat modifiers above, just parameterized instead of fixed per item. The affix pool is a `DataTable` (`DT_DC_ItemAffixes`), not hardcoded, matching `GameDevPlan.md` §4.4's data-driven-everything philosophy — design can add/tune affixes without a recompile. Affixes roll server-side at drop-table-roll time (when the loot is generated), not on pickup — keeps rolls deterministic and debuggable per-seed, same reasoning as the existing seeded drop-table design. Uniques (`Docs/Items.md`) are a `bIsUnique` flag on `UDCItemConfig` that skips the normal affix roll and applies a hardcoded bespoke `GameplayEffect`/behavior instead.
 - **Skill-gated containers** (new, per the skill/progression brainstorm in `Docs/Classes.md`): a lockable container carries `RequiredSkill` (`FGameplayTag`) + `RequiredSkillLevel` (`int32`); locked until the opening player's tracked skill level meets the requirement. Skill levels live in a new replicated `TMap<FGameplayTag, int32>` on `ADCPlayerState` — profile-scope progression, persists via §7's save system, not run-scope. The actual skill list is a living, ongoing design effort (`Docs/Classes.md`), not fixed here.
 
 ## 7. Progression & saves
@@ -150,6 +155,8 @@ Two separate, non-overlapping save scopes — don't let them blur:
 Death handling (co-op, no permadeath for the beta): a downed player can be revived by a teammate within the run; a solo-downed player with no teammate available fails the run (matches the co-op-PvE decision — no permanent character loss, the *run's* loot is what's at stake, not the character).
 
 ## 8. UI/UX flow
+
+Wireframe-level layout for every screen (exact components, positions, Blueprint-build steps): `Docs/UIUX.md`. This section stays flow-level — which screen leads to which, and save-scope behavior.
 
 `Main Menu (title screen: New/Continue/Quit) → Hub World (persistent shared space, see Docs/GameplayLoops.md — loadout/vendor/dummies/portal are physical interactables, not menu buttons) → [interact Portal: Host/Join direct-IP] → Dungeon HUD (per-player health/stamina bars, objective tracker, full-screen map toggle — see Docs/GameplayLoops.md's fog-of-war design, replaces the earlier "minimap cut" note) → Run-End screen (extract success/fail, loot summary — success keeps all run-carried loot, failure loses it; profile-scope unlocks/skill-levels persist regardless of run outcome, a separate save scope from run loot) → back to Hub.`
 
@@ -165,24 +172,54 @@ Every HUD/menu widget is a dedicated `UDCUserWidgetBase` subclass (native `BindW
 
 Third-person, over-the-shoulder — `GameDevPlan.md`'s header explicitly says "third person," which resolves what could otherwise read as ambiguous against the Diablo-4 comparison (Diablo 4 is isometric; the visual/control reference is Dark and Darker's camera, not Diablo's). Reuse the existing stock template's `DungeonCatCharacter` camera-boom setup as the starting point rather than building a camera system from scratch — it's already third-person and already in the repo.
 
-FOV 90. No hard target-lock — a soft auto-face-toward-nearest-target-in-cone on attack-input instead, readable without lock-on system complexity (and works equally well on controller, see below). Standard spring-arm collision, no custom camera-collision system needed for grey-box.
+FOV 90. No hard target-lock — a soft auto-face-toward-nearest-target-in-cone on attack-input instead, readable without lock-on system complexity (and works equally well on controller, see below). Standard spring-arm collision, no custom camera-collision system needed for grey-box. **Extended 2026-08-16 to every class, not just Knight's melee**: no ability on any class ever uses manual aiming or target-cycling — ranged/curse/lob abilities auto-resolve a target the same way (nearest valid enemy in a forward cone, nearest ally or self, or a fixed lobbed point ahead). Full rule and per-ability targeting: `Docs/Classes.md`'s "Ability-slot philosophy" section.
 
-**Controller support, planned from the start** (2026-08-13 decision — overrides an earlier draft recommendation to cut it for the beta; that was `zombieshooter` precedent, not this project's call). Enhanced Input targets both KBM and gamepad from day one, not gamepad-as-an-afterthought: movement on the left stick, camera on the right stick, the 4 Knight abilities on face buttons (Claw Flurry/Pounce on the primary face button since it's tap-vs-hold, Headbutt/Zoomies/Bunny Kick on the others), interact on a shoulder button. This is a real scope addition to the still-blocked Enhanced Input work — `IMC_DC_Default` needs a gamepad-equivalent context alongside the KBM one, not just KBM. Tracked in `Docs/P2_DungeonAI.md`.
+**Controller support, planned from the start** (2026-08-13 decision — overrides an earlier draft recommendation to cut it for the beta; that was `zombieshooter` precedent, not this project's call). Enhanced Input targets both KBM and gamepad from day one, not gamepad-as-an-afterthought. **Full button map pinned 2026-08-16** (previously just "abilities on face buttons, interact on a shoulder button" with no exact assignments):
+
+| Input | Function | Notes |
+|---|---|---|
+| Left stick | Move | |
+| Right stick | Camera | |
+| Face South | Slot 1 — basic attack | Free, spammable, tap-vs-hold where the kit uses it (Claw Flurry/Pounce). Same slot-role on every class — always the reflexive "mash" button no matter which class you're playing. |
+| Face East | Slot 2 — defensive/panic ability | Zoomies, Hiss, Nine Lives, Groom (`Docs/Classes.md`). Same slot-role on every class on purpose — the panic-button reflex shouldn't depend on which class you picked. |
+| Face West | Slot 3 — cost-gated utility ability | Headbutt, Slink, Evil Eye, Purr. |
+| Face North | Slot 4 — signature/AoE ability | Whirlwind, Ambush, Hairball, Biscuits. |
+| Right bumper | Interact | Same decision as before, now pinned to a specific button. |
+| Left bumper | Use consumable | New assignment — `Docs/Items.md`'s beta consumable had no bound input before this pass. |
+| Left/right trigger | Reserved, unbound in the beta | The sanctioned home for future expansion (a hold-trigger-plus-face-button chord for an alternate cast, or eventually a 5th slot) — see `Docs/Classes.md`'s "Ability-slot philosophy." Not built now. |
+| D-pad | Reserved (Up = map-toggle candidate) | Low-urgency tier, matches the D-pad's poor mid-combat reachability. |
+| Start/Menu | Pause / Settings overlay | Matches §8's non-pausing overlay decision. |
+| Left stick click | Jump | Inherited from the stock template. **Flagged for the dev**: confirm whether Jump is a real verb in the actual game (a dungeon crawler with no platforming in scope per `GameDevPlan.md`) or should be dropped from the scheme entirely — parked on the least-precious input either way until that's decided. |
+
+This is a real scope addition to the still-blocked Enhanced Input work — `IMC_DC_Default` needs a gamepad-equivalent context alongside the KBM one, not just KBM. Tracked in `Docs/P2_DungeonAI.md`.
 
 ## Audio
 
-Not addressed anywhere in the docs until now. Policy: every `GameplayCue` (§2.5) gets its hook point created — even silent/placeholder — as each ability/system is built, so wiring isn't deferred to a late scramble. Real sound design (actual SFX/music/VO, middleware decision if any) is a post-beta pass, matching the grey-box-art precedent already applied everywhere else.
+Policy (unchanged): every `GameplayCue` (§2.5) gets its hook point created — even silent/placeholder — as each ability/system is built, so wiring isn't deferred to a late scramble. Real sound design (actual SFX/music/VO, middleware decision if any) is still a post-beta pass, matching the grey-box-art precedent applied everywhere else. **Creative direction added 2026-08-19** (still no actual SFX/music decided, just the direction future work should aim at):
 
-## Boss design (Swarm-mother — the beta's only boss)
+- **Tone**: playful, adventurous, cartoon-bright — not horror, not grim/dread. Matches the "readable cat power fantasy" pillar (`GameDevPlan.md` §3) and the cartoon art style; sound should reinforce clarity and snap, not mood.
+- **Music** (post-beta, direction only): two functional beats needed eventually — a calm "home base" Hub theme, and a Dungeon/combat theme that's tense in the extraction sense, not oppressive/horror-tense.
+- **GameplayCue category checklist** (hook points to create now, even silent, per the existing policy):
+  - Attack-impact — per weapon type (`AssetPipeline.md`'s weapon-vs-ability animation split applies here too: one impact cue per weapon type, not per class).
+  - Ability-cast — per specific ability.
+  - Enemy-hit/death — per archetype (`Docs/Bestiary.md`).
+  - Boss telegraph "sting" — the audio half of every boss's ~0.5-1s wind-up telegraph.
+  - UI — menu navigation, vendor purchase, error/disconnect toasts.
+  - Ambient loops — per room type/dungeon zone.
+  - Footsteps — per surface material.
 
-Identity: an enlarged vermin matriarch that spawns adds using the same swarm/leaper archetype (§5) already planned for P2/P3 — reuses assets/AI instead of needing bespoke boss-only content, and is the most on-hook choice for the "cat vs vermin" marketable hook (`GameDevPlan.md` §1). Decided 2026-08-13, the one live creative question asked this design pass.
+## Customization (post-beta, added 2026-08-19)
 
-- **Phases**: 2, threshold split at 50% HP.
-- **Telegraphs**: every attack gets a visible ~0.5-1s wind-up (animation + optional cue) before it lands — matches the readable pillar and gives co-op players a fair dodge window.
-- **Phase 2 change**: a new attack pattern, plus 2-3 swarm adds spawn, reusing swarm-archetype content directly.
-- **Arena**: mechanically flat for the beta stub (no hazards) — matches "boss stub," not "boss vertical slice." Environmental mechanics are a good post-beta expansion.
-- **This resolves `GameDevPlan.md` §4.5's deferred StateTree-vs-BT call**: 2 phases / ~3-4 total attack patterns is squarely inside what §4.5 already says pure StateTree handles cleanly ("don't reach for BT" for a handful of states). Default to pure StateTree for the beta boss — only reach for the BT escape hatch if implementation actually proves it unwieldy, which is unlikely at this scope. The call was framed as "let complexity decide it"; now that the complexity is scoped, it decides in favor of pure StateTree.
-- **Boss-gates-objective**: the boss is a mandatory encounter immediately before the final objective, never optional — see `Docs/GameplayLoops.md` for the full structural rule (applies to every future game mode, not just this one).
+Turns `GameDevPlan.md` §4.3's brief mention into a buildable spec. Content (fur colors/patterns, accessory list, size-slider bounds): `Docs/Items.md`.
+
+- **Fur color/pattern**: material-instance-parameter driven — one base material with color/pattern-mask parameters, swapped per `MI_DC_Cat_<Variant>` instance. Straightforward, not a forked decision.
+- **Accessories**: modular meshes on existing or new small sockets (head, neck) — same socket-attachment pattern already used for weapons (`AssetPipeline.md` §3). Straightforward.
+- **Size — FLAGGED FOR DEV, not resolved**: `GameDevPlan.md` §4.3 already posed this as an either/or without deciding — **blend-shape morph target** vs. **controlled bone-scaling**. Real technical fork: affects animation retargeting and how tolerant the collision capsule needs to be across the size range. Needs the dev's call before implementation, not decided here.
+- **Gear-fitting — FLAGGED FOR DEV, not resolved**: same doc, same either/or — **skeletal mesh merge** (gear meshes combined into the base mesh at runtime) vs. **Leader Pose Component** (gear stays separate meshes following the base's animation). A perf/complexity tradeoff, not a creative one — needs the dev's call.
+
+## Boss design
+
+Full boss content (identity, phases, telegraphs, arena — Swarm-mother plus the post-beta roster) moved to `Docs/Bestiary.md`, matching this doc's existing content-vs-architecture split (§2.6/§6 do the same for classes/items). This section stays technical: every boss defaults to pure StateTree, no BT escape hatch, per `GameDevPlan.md` §4.5 — reach for the embedded-BT escape hatch only if a specific boss's implementation actually proves unwieldy at pure-StateTree, which hasn't happened for any boss designed so far (all are 2 phases / a handful of attack patterns, squarely inside what §4.5 already says StateTree handles cleanly). Boss-gates-objective structural rule (every boss is a mandatory, never-optional gate immediately before its mode's final objective): `Docs/GameplayLoops.md`.
 
 ## 10. P0 reuse audit findings (2026-08-12)
 
@@ -208,4 +245,4 @@ Verified against the actual code (not memory) per `ProductionPlan.md` P0. Correc
 - Exact Stamina regen/drain curve (tuning, needs the grey-box arena to feel out).
 - Whether ability activation goes `ServerInitiated` or `LocalPredicted` long-term (§2.3 — start server-initiated, revisit only if latency is a felt problem).
 - ~~Steam Sessions vs direct-IP~~ — **resolved 2026-08-13**, see §3.1. Direct-IP, no Steam integration exists to reuse.
-- **Dungeon generation technique** — reopened 2026-08-13, see §4's flag. The dev is reconsidering the approach; nothing in §4 should be treated as settled until confirmed.
+- ~~Dungeon generation technique~~ — **resolved 2026-08-19**, see §4. Fixed hand-authored v1 layout for the beta; real procedural generation deferred post-beta (`ProductionPlan.md`).
