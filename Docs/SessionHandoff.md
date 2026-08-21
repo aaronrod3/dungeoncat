@@ -4,43 +4,18 @@
 >
 > **Away session?** Read `Docs/AsyncSessionProtocol.md` once now and follow it for the rest of the session without re-reading it.
 
-## Status (2026-08-19)
+## Status (2026-08-20)
 
-**Full-game design expansion pass** — a large, multi-doc planning session while the dev models the cat in Blender (doesn't touch code, doesn't block on doc work). Scope: go broad across the full-release vision (not just beta/near-term), overriding several docs' earlier "design this when its turn comes" convention at the dev's explicit request, with one guardrail — anything with real downstream/architectural dependencies gets flagged for the dev's confirmation rather than silently decided. Worked through 10 elements one at a time with the dev's sign-off before each write, not a single unreviewed dump.
+**P2 C++ scaffolding pass** — 5 clusters from the away-session task list, Mode A (compile-gated), each `[compiled]`-tagged, committed, and pushed individually: enemy character foundation (`ADCEnemyCharacter`/`UDCEnemyConfig`), loot/itemization scaffolding (`UDCInteractableComponent`, `UDCItemConfig`/`FDCItemAffix`, `UDCItemPickupComponent`, `UDCLootTableConfig`), the downed/revive state machine (`UDCDownedComponent`, ported from `zombieshooter`'s `UZSHealthComponent` pattern), skill/progression scaffolding (`ADCPlayerState` skill levels, `UDCLockableContainerComponent`, `UDCSaveGame_Profile`), and the Dungeon HUD's native widget classes (`UDCUserWidgetBase`, `UDCUserWidgetBase_DungeonHUD`, wired to real P1 Health/Stamina). `UDCAttributeSet` also gained `OnOutOfHealth`, a shared server-side hook both the enemy-death and downed paths use.
 
-**New docs created**:
-- `Docs/Bestiary.md` — full enemy archetype roster (including a new 4th archetype, Brute/Tank) + specific creatures + full boss roster (Swarm-mother plus 3 new bosses: the Serpent, the Broodmother, Stonehide).
-- `Docs/UIUX.md` — wireframe-level layout for every screen (exact components, UMG anchor/position specs, Blueprint-build steps). All screen functionality is native C++; Blueprint is positioning/styling only, per the dev's explicit rule.
-- `Docs/Narrative.md` — structural skeleton only for the game's world/story layer, every actual lore field left blank for the dev to fill in (dev-specified: structure now, content later).
+All 5 compiled clean and passed a headless (`-nullrhi`) smoke test with no crash/assert signatures — the away-session ceiling per `AsyncSessionProtocol.md`. **None are PIE-tested.** Several pieces are honestly scoped-not-wired rather than faked: ability-blocking on `State.Downed` (doesn't touch the 4 already-shipped Knight abilities), the ~3s revive channel/range enforcement (needs an interact system that doesn't exist), ally health bars and ability-cooldown icon fills on the HUD (need multiplayer-aware lookups not yet built), and the beta consumable's carried-list usage.
 
-**Resolved this pass**:
-- **Dungeon generation, closed** — was reopened since 2026-08-13. The dev's own call after hearing the difficulty tradeoff: real procedural generation is deferred past the beta (it's genuine implementation scope and hollow without a room-art catalog that doesn't exist yet); **the beta ships one hand-authored dungeon layout** instead, built from the same 400uu-grid/door-socket module convention so nothing's wasted when generation gets built later. Per-run variety stays in seeded encounter/loot rolling. This fully unblocks P2 — updated `SystemsDesign.md` §4, `GameDevPlan.md` §4.2/§7/§8/§9, `P2_DungeonAI.md`, and added a new procedural-generation entry to `ProductionPlan.md`'s After-the-beta section (design preserved, not deleted).
-- **Skill/progression depth** — 3 new universal skills (Quiet Paws, Sure Grip, Treasure Sense) added to `Classes.md`; each class's one-line mastery description turned into a real 3-tier table (baseline → play-earned → milestone-gated).
-- **Weapon-vs-ability animation split, new rule** (dev-specified) — basic/weapon attacks are authored per weapon type (shareable across any class using that weapon), not per class; specific abilities stay bespoke per-class. Applied to `AssetPipeline.md`'s new Rogue/Wizard/Healer animation lists and folded into the naming convention (§6).
-- **Full itemization pass** — a 6-affix pool matching `UDCAttributeSet` 1:1, rarity-tiered affix counts, itemized weapon variety (stat rolls only, never new movesets), one unique per class, and a cosmetics/customization catalog (fur colors/patterns, accessories, size — `Items.md`). Boss loot tables added on top: guaranteed rolls scaled to party size + a bonus-roll chance, weighted toward higher rarity than regular tables (dev-requested addition).
-- **Post-beta game modes designed** — Kill-boss (no item stakes, the boss itself is the point, draws from the new 4-boss roster), Rescue (escort an NPC captive — flagged below, needs new AI tech), Combo (remixes the other 3). Hub World gained a Trophy Board and Cosmetics Mirror; the Portal gains a mode-select step once these exist.
-- **Audio creative direction** — tone reference (playful/cartoon-bright, not horror) and a concrete GameplayCue-category checklist, replacing the old policy-only statement.
+**New folders**: `Source/DungeonCat/Enemy/`, `Interaction/`, `Items/`, `Combat/`, `SaveGame/`, `UI/` — all added to `DungeonCat.Build.cs`'s include paths.
 
-**Flagged for the dev — needs your call before any of these get treated as locked** (consolidated from throughout this pass; each is drafted as a first-draft option in its doc, not decided):
-1. **Customization tech, two forks** (`SystemsDesign.md`'s new Customization section) — size via blend-shape morph target vs. bone-scaling; gear-fitting via skeletal mesh merge vs. Leader Pose Component. Both were already posed as open either/ors in `GameDevPlan.md` §4.3; still open.
-2. **Rescue mode's escort AI** (`GameplayLoops.md`) — needs a genuinely new AI behavior (follow/flee, no combat capability, survivability tracking) that doesn't reuse any existing archetype pattern. Flagged as real new scope, not a light lift.
-3. **Pounce should cost Stamina** (`Docs/IdeaBacklog.md`, pre-existing item, untouched this pass) — still open; touches an already-compiled ability's economy.
-4. **Character leveling → stat-token spend system** (`Docs/IdeaBacklog.md`, pre-existing item) — still just a backlog idea, no design drafted yet this pass; would touch `UDCAttributeSet` balance that P2's enemy tuning already anchors to.
-5. **Per-class Mana vs. shared Stamina** and **prestige-vs-new-ability branch fork** (`Docs/IdeaBacklog.md`, pre-existing items) — both still open, referenced but not resolved wherever this pass touched Wizard costs or mastery tables.
+**Known tooling gotcha, hit twice this session**: the headless smoke-test `UnrealEditor.exe` (`-ExecCmds=quit`) does not reliably self-terminate — it can sit holding the DLL locked, causing the *next* build to fail with `LNK1104: cannot open file ... .dll` (a false compile-error signal, not a real code problem). Always verify with `Get-Process UnrealEditor` after a smoke test and `Stop-Process` it before the next build if still running.
 
-**Still open, unaffected by this pass**: everything below is exactly as it was — this was a docs-only session, no code touched.
-
-**Still blocked on the dev's hands**:
-- **Enhanced Input wiring (P1)**: `ADCPlayerCharacter` binds 4 ability Input Actions to `AbilityInputPressed`/`AbilityInputReleased` via `SetupPlayerInputComponent`, compiles clean. Still needs editor-side work: create 4 Input Actions + `IMC_DC_Default` (+ a gamepad-equivalent context per `SystemsDesign.md` §9) + `BP_DCPlayerCharacter`/`BP_DCPlayerController` in editor, then set `Default Pawn Class`/`Player Controller Class` on `Lvl_ThirdPerson`'s World Settings, before it can be PIE-tested with 2 clients.
-- **P2 multiplayer-targeting fix**: done, see `Docs/P2_DungeonAI.md` Stage 2. Compiles clean, **not yet PIE-tested** — needs Stage 3's 2-player check.
-
-Neither has been PIE-tested yet — simulated PIE input is unreliable, confirmed multiple times now, and this pass didn't touch code either way.
+**Gitea (`origin`) push auth is intermittent** — worked cleanly for some pushes this session, failed with "Failed to authenticate user" on others, with no code change in between. GitHub (`github`) push has been reliable throughout and both remotes are currently in sync at the same commit. Worth the dev's attention next time they're at the keyboard, but not blocking — GitHub always has the latest.
 
 ## Next step
 
-Dev's hands needed on the same two fronts as before, unchanged by this pass:
-
-1. **Enhanced Input**: editor asset/BP creation above, then PIE-test the 4 Knight abilities with 2 clients.
-2. **P2 targeting fix**: PIE-test with 2 players standing apart in `Lvl_Combat`.
-
-Independent of both, and now genuinely unblocked: **P2's dungeon work can start** — build the one hand-authored layout per `SystemsDesign.md` §4.2, using the 400uu-grid modules. Also worth a look whenever convenient: the 5 flagged decisions above are all quick reads in their respective docs, and none of them block any other work — they just shouldn't be treated as settled until you've weighed in.
+Everything from this pass needs the dev's hands for the same reason as before: PIE verification (2 clients) and the editor-content side (`DA_DC_EnemyConfig_*`/`DA_DC_ItemConfig_*`/`DA_DC_LootTable_*` instances, StateTree graphs, `WBP_DC_HUD_Dungeon` built to `Docs/UIUX.md`'s spec) — none of that is reachable without a live editor. Also still outstanding, unchanged by this pass: Enhanced Input's editor-side asset creation (P1) and the P2 multiplayer-targeting fix's 2-player PIE check. The hand-authored dungeon layout (`SystemsDesign.md` §4.2) is also still open — pure level-editor work, not something this pass touched.
