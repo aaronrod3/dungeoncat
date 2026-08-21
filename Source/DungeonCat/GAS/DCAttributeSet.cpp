@@ -70,6 +70,11 @@ void UDCAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallback
 
 	SetHealth(FMath::Clamp(GetHealth() - LocalDamage, 0.f, GetMaxHealth()));
 
+	if (GetHealth() <= 0.f)
+	{
+		OnOutOfHealth.Broadcast();
+	}
+
 	// P1 replication-proof decision (SystemsDesign.md §10 open items): a debug log/on-screen message
 	// is the agreed "proof it worked" for the week-1 two-client test, not a visual GameplayCue.
 	// Deliberately temporary - remove once real GameplayCues exist for damage feedback.

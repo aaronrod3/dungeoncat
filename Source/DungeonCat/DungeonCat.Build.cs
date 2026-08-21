@@ -29,6 +29,9 @@ public class DungeonCat : ModuleRules
 		PublicIncludePaths.AddRange(new string[] {
 			"DungeonCat",
 			"DungeonCat/GAS",
+			"DungeonCat/Enemy",
+			"DungeonCat/Interaction",
+			"DungeonCat/Items",
 			"DungeonCat/Variant_Platforming",
 			"DungeonCat/Variant_Platforming/Animation",
 			"DungeonCat/Variant_Combat",

@@ -13,6 +13,13 @@
 	GAMEPLAYATTRIBUTE_VALUE_SETTER(PropertyName) \
 	GAMEPLAYATTRIBUTE_VALUE_INITTER(PropertyName)
 
+/** Broadcast from PostGameplayEffectExecute every time a damage application leaves Health at 0 - not
+ *  just on the first transition, since a listener (e.g. a downed/revive state machine) may care about
+ *  a repeat hit while already at 0 as a distinct "finishing blow" case. Deliberately dumb/stateless
+ *  here - this AttributeSet just reports the fact; whatever it means (die outright vs. enter a downed
+ *  state vs. a finishing blow) is the listener's decision, not this class's. */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FDCOnOutOfHealth);
+
 /**
  *  The one AttributeSet for the Knight beta (SystemsDesign.md §2.1). Lives on ADCPlayerState via its
  *  AbilitySystemComponent, not on the character - see ADCPlayerState's header comment.
@@ -77,6 +84,14 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "DC|Attributes|Meta")
 	FGameplayAttributeData Damage;
 	DC_ATTRIBUTE_ACCESSORS(UDCAttributeSet, Damage)
+
+	/** See FDCOnOutOfHealth's own comment. Broadcast from PostGameplayEffectExecute, which (matching
+	 *  this project's ServerInitiated-everything convention, SystemsDesign.md §2.3) only actually runs
+	 *  server-side - server-authoritative by construction, not something a client-only listener should
+	 *  bind to for its own gameplay decisions. A client-side reaction (e.g. HUD downed-state styling)
+	 *  should watch a replicated state flag instead, same pattern as ADCEnemyCharacter::OnRep_IsDead. */
+	UPROPERTY(BlueprintAssignable, Category = "DC|Attributes")
+	FDCOnOutOfHealth OnOutOfHealth;
 
 protected:
 
