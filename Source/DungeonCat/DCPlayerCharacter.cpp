@@ -10,6 +10,7 @@
 #include "GAS/DCGameplayAbility_Whirlwind.h"
 #include "AbilitySystemComponent.h"
 #include "EnhancedInputComponent.h"
+#include "Combat/DCDownedComponent.h"
 
 ADCPlayerCharacter::ADCPlayerCharacter()
 {
@@ -17,6 +18,8 @@ ADCPlayerCharacter::ADCPlayerCharacter()
 	ShieldBashAbilityClass = UDCGameplayAbility_ShieldBash::StaticClass();
 	DashAbilityClass = UDCGameplayAbility_Dash::StaticClass();
 	WhirlwindAbilityClass = UDCGameplayAbility_Whirlwind::StaticClass();
+
+	DownedComponent = CreateDefaultSubobject<UDCDownedComponent>(TEXT("DownedComponent"));
 }
 
 UAbilitySystemComponent* ADCPlayerCharacter::GetAbilitySystemComponent() const
@@ -55,6 +58,11 @@ void ADCPlayerCharacter::PossessedBy(AController* NewController)
 			ASC->InitAbilityActorInfo(DCPlayerState, this);
 			GrantKnightAbilities();
 		}
+
+		if (DownedComponent)
+		{
+			DownedComponent->BindToAttributeSet(DCPlayerState->GetDCAttributeSet());
+		}
 	}
 }
 
@@ -71,6 +79,11 @@ void ADCPlayerCharacter::OnRep_PlayerState()
 		if (UAbilitySystemComponent* ASC = DCPlayerState->GetAbilitySystemComponent())
 		{
 			ASC->InitAbilityActorInfo(DCPlayerState, this);
+		}
+
+		if (DownedComponent)
+		{
+			DownedComponent->BindToAttributeSet(DCPlayerState->GetDCAttributeSet());
 		}
 	}
 }

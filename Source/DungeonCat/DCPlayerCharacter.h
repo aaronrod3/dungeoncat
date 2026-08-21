@@ -12,6 +12,7 @@ class UDCAttributeSet;
 class UAbilitySystemComponent;
 class UGameplayAbility;
 class UInputAction;
+class UDCDownedComponent;
 
 /** Maps to each granted ability's FGameplayAbilitySpec::InputID (SystemsDesign.md §2.3's 4 Knight abilities). ADCPlayerCharacter::SetupPlayerInputComponent binds IMC_DC_Default's 4 ability Input Actions to AbilityInputPressed/Released with these. */
 UENUM(BlueprintType)
@@ -59,6 +60,9 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "DC|Ability")
 	UDCAttributeSet* GetDCAttributeSet() const;
+
+	UFUNCTION(BlueprintPure, Category = "DC|Downed")
+	UDCDownedComponent* GetDownedComponent() const { return DownedComponent; }
 
 	/** Routes to AbilitySystemComponent::AbilityLocalInputPressed - bound to each ability Input
 	 *  Action's Started event in SetupPlayerInputComponent below. */
@@ -109,4 +113,7 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = "DC|Ability|Input")
 	TObjectPtr<UInputAction> WhirlwindAction;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DC|Downed")
+	TObjectPtr<UDCDownedComponent> DownedComponent;
 };

@@ -30,6 +30,7 @@ public class DungeonCat : ModuleRules
 			"DungeonCat",
 			"DungeonCat/GAS",
 			"DungeonCat/Enemy",
+			"DungeonCat/Combat",
 			"DungeonCat/Interaction",
 			"DungeonCat/Items",
 			"DungeonCat/Variant_Platforming",
