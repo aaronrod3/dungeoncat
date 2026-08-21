@@ -34,6 +34,7 @@ public class DungeonCat : ModuleRules
 			"DungeonCat/Interaction",
 			"DungeonCat/Items",
 			"DungeonCat/SaveGame",
+			"DungeonCat/UI",
 			"DungeonCat/Variant_Platforming",
 			"DungeonCat/Variant_Platforming/Animation",
 			"DungeonCat/Variant_Combat",
